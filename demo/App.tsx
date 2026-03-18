@@ -69,14 +69,11 @@ export default function App() {
   const alphaInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Request permission first so device labels are available
+    // Enumerate devices without grabbing the stream — avoids blocking
+    // the webcam before components can use it.
+    // Note: device labels may be empty until the first getUserMedia succeeds.
     navigator.mediaDevices
-      .getUserMedia({ video: true })
-      .then((stream) => {
-        // Got permission — stop the stream immediately, then enumerate
-        stream.getTracks().forEach((t) => t.stop());
-        return navigator.mediaDevices.enumerateDevices();
-      })
+      .enumerateDevices()
       .then((all) => {
         const videoInputs = all.filter((d) => d.kind === 'videoinput');
         setDevices(videoInputs);
@@ -92,16 +89,8 @@ export default function App() {
       })
       .catch((err) => {
         setHasCamera(false);
-        if (err.name === 'NotAllowedError') {
-          setCameraError('Camera access denied. Allow camera permissions in your browser to use live video.');
-          setStatus('Camera permission denied');
-        } else if (err.name === 'NotFoundError') {
-          setCameraError('No camera detected. Connect a webcam to use live video components.');
-          setStatus('No cameras found');
-        } else {
-          setCameraError(`Camera error: ${err.message}`);
-          setStatus(`Camera error: ${err.message}`);
-        }
+        setCameraError(`Camera error: ${err.message}`);
+        setStatus(`Camera error: ${err.message}`);
       });
   }, []);
 
@@ -132,8 +121,11 @@ export default function App() {
 
   const handleError = useCallback((err: Error) => {
     setStatus(`Error: ${err.message}`);
-    if (err.message.includes('video source') || err.message.includes('getUserMedia') || err.message.includes('NotAllowed') || err.message.includes('NotFound')) {
+    // Detect webcam-related errors and show the no-camera notice
+    const msg = err.message.toLowerCase();
+    if (msg.includes('video source') || msg.includes('getusermedia') || msg.includes('notallowed') || msg.includes('notfound') || msg.includes('timeout') || msg.includes('denied') || msg.includes('could not start')) {
       setCameraError(err.message);
+      setHasCamera(false);
     }
   }, []);
 
