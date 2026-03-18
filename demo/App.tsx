@@ -46,6 +46,7 @@ export default function App() {
   const [status, setStatus] = useState('Initializing...');
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [hasCamera, setHasCamera] = useState<boolean | null>(null); // null = loading
+  const [cameraReady, setCameraReady] = useState(false); // true = safe to mount components
 
   // Controls
   const [scale, setScale] = useState(1);
@@ -69,29 +70,68 @@ export default function App() {
   const alphaInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Enumerate devices without grabbing the stream — avoids blocking
-    // the webcam before components can use it.
-    // Note: device labels may be empty until the first getUserMedia succeeds.
-    navigator.mediaDevices
-      .enumerateDevices()
-      .then((all) => {
+    let cancelled = false;
+
+    async function initCamera() {
+      try {
+        // Step 1: getUserMedia to get permission + discover which device works
+        setStatus('Requesting camera access...');
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+
+        // Extract the working device ID from the active track
+        const track = stream.getVideoTracks()[0];
+        const workingDeviceId = track.getSettings().deviceId || '';
+
+        // Step 2: Release the stream so components can acquire it
+        stream.getTracks().forEach((t) => t.stop());
+
+        // Step 3: Small delay to let the OS release the device handle
+        await new Promise((r) => setTimeout(r, 500));
+        if (cancelled) return;
+
+        // Step 4: Enumerate with permission granted — now we get labels + real IDs
+        const all = await navigator.mediaDevices.enumerateDevices();
         const videoInputs = all.filter((d) => d.kind === 'videoinput');
+
+        if (cancelled) return;
+
         setDevices(videoInputs);
         setHasCamera(videoInputs.length > 0);
+
         if (videoInputs.length > 0) {
-          setSelectedDevice(videoInputs[0].deviceId);
+          // Prefer the device that already worked
+          const defaultDevice = videoInputs.find((d) => d.deviceId === workingDeviceId);
+          setSelectedDevice(defaultDevice ? defaultDevice.deviceId : videoInputs[0].deviceId);
           setStatus(`Found ${videoInputs.length} camera(s)`);
           setCameraError(null);
         } else {
           setStatus('No cameras found');
           setCameraError('No camera detected. Connect a webcam to use live video components.');
         }
-      })
-      .catch((err) => {
+
+        // Step 5: Now safe to mount WebGL components
+        setCameraReady(true);
+      } catch (err: unknown) {
+        if (cancelled) return;
+        const error = err instanceof Error ? err : new Error(String(err));
         setHasCamera(false);
-        setCameraError(`Camera error: ${err.message}`);
-        setStatus(`Camera error: ${err.message}`);
-      });
+        setCameraReady(true); // still allow UI to render (shows error overlay)
+
+        if (error.name === 'NotAllowedError') {
+          setCameraError('Camera access denied. Allow camera permissions in your browser to use live video.');
+          setStatus('Camera permission denied');
+        } else if (error.name === 'NotFoundError') {
+          setCameraError('No camera detected. Connect a webcam to use live video components.');
+          setStatus('No cameras found');
+        } else {
+          setCameraError(`Camera error: ${error.message}`);
+          setStatus(`Camera error: ${error.message}`);
+        }
+      }
+    }
+
+    initCamera();
+    return () => { cancelled = true; };
   }, []);
 
   // Reset state on tab change
@@ -510,23 +550,25 @@ export default function App() {
             transition: isDragging ? 'none' : 'transform 0.1s ease-out',
           }}
         >
-          {activeTab === 'cube' && <WebcamCube {...commonProps} />}
-          {activeTab === 'sphere' && <WebcamSphere {...commonProps} />}
-          {activeTab === 'animated' && <AnimatedVideoCube {...commonProps} showDebugInfo />}
-          {activeTab === 'shader' && (
+          {/* Webcam-only components: wait for camera init to complete and release device */}
+          {cameraReady && !cameraError && activeTab === 'cube' && <WebcamCube {...commonProps} />}
+          {cameraReady && !cameraError && activeTab === 'sphere' && <WebcamSphere {...commonProps} />}
+          {cameraReady && !cameraError && activeTab === 'animated' && <AnimatedVideoCube {...commonProps} showDebugInfo />}
+          {/* Shader/Alpha: file mode doesn't need camera, but still wait for init to finish */}
+          {cameraReady && (activeTab === 'shader') && (!needsWebcam || !cameraError) && (
             <VideoShaderFX
               {...commonProps}
               videoSrc={effectiveVideoSrc}
             />
           )}
-          {activeTab === 'alpha' && (
+          {cameraReady && (activeTab === 'alpha') && (!needsWebcam || !cameraError) && (
             <VideoAlphaMask
               {...commonProps}
               videoSrc={effectiveVideoSrc}
               alphaSrc={effectiveAlphaSrc}
             />
           )}
-          {activeTab === 'grid' && (
+          {cameraReady && !cameraError && activeTab === 'grid' && (
             <VideoGrid
               {...commonProps}
               width={baseWidth}
