@@ -4,7 +4,7 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
-  root: '.',
+  root: 'demo',
   resolve: {
     alias: {
       '@riptheai/webgl-video': path.resolve(__dirname, 'src'),
