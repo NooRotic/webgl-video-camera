@@ -33,42 +33,69 @@ export function createVideoTexture(videoElement: HTMLVideoElement): THREE.VideoT
 
 /**
  * Request a webcam MediaStream with optional device selection and resolution constraints.
- * Retries on AbortError (device busy) to handle React StrictMode double-mount races
- * and Windows exclusive camera locks.
+ * On AbortError (device busy / timeout), retries with progressively relaxed constraints:
+ *   1. Retry with same { exact: deviceId } after delay
+ *   2. Fall back to { deviceId: { ideal: id } } (prefer but don't require)
+ *   3. Fall back to { video: true } (let browser pick any camera)
  */
 export async function createWebcamStream(options: WebcamStreamOptions = {}): Promise<MediaStream> {
-  const maxRetries = options.retries ?? 2;
-  const retryDelay = options.retryDelay ?? 1000;
+  const retryDelay = options.retryDelay ?? 1500;
 
-  const videoConstraints: MediaTrackConstraints = {};
+  function buildConstraints(deviceId?: string, useExact = true): MediaStreamConstraints {
+    const videoConstraints: MediaTrackConstraints = {};
+
+    if (deviceId && deviceId.length > 0) {
+      videoConstraints.deviceId = useExact ? { exact: deviceId } : { ideal: deviceId };
+    }
+    if (options.width) {
+      videoConstraints.width = { ideal: options.width };
+    }
+    if (options.height) {
+      videoConstraints.height = { ideal: options.height };
+    }
+    if (options.frameRate) {
+      videoConstraints.frameRate = { ideal: options.frameRate };
+    }
+    if (options.facingMode) {
+      videoConstraints.facingMode = options.facingMode;
+    }
+
+    return {
+      video: Object.keys(videoConstraints).length > 0 ? videoConstraints : true,
+    };
+  }
+
+  // Build a sequence of progressively relaxed attempts
+  const attempts: { label: string; constraints: MediaStreamConstraints }[] = [];
 
   if (options.deviceId && options.deviceId.length > 0) {
-    videoConstraints.deviceId = { exact: options.deviceId };
+    attempts.push({
+      label: `exact device ${options.deviceId.slice(0, 8)}`,
+      constraints: buildConstraints(options.deviceId, true),
+    });
+    attempts.push({
+      label: `preferred device ${options.deviceId.slice(0, 8)}`,
+      constraints: buildConstraints(options.deviceId, false),
+    });
   }
-  if (options.width) {
-    videoConstraints.width = { ideal: options.width };
-  }
-  if (options.height) {
-    videoConstraints.height = { ideal: options.height };
-  }
-  if (options.frameRate) {
-    videoConstraints.frameRate = { ideal: options.frameRate };
-  }
-  if (options.facingMode) {
-    videoConstraints.facingMode = options.facingMode;
-  }
+  // Final fallback: let browser pick any camera
+  attempts.push({
+    label: 'any available camera',
+    constraints: buildConstraints(),
+  });
 
-  const constraints = {
-    video: Object.keys(videoConstraints).length > 0 ? videoConstraints : true,
-  };
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  for (let i = 0; i < attempts.length; i++) {
+    const { label, constraints } = attempts[i];
     try {
-      return await navigator.mediaDevices.getUserMedia(constraints);
+      console.log(`[webgl-video] Trying: ${label}`);
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const track = stream.getVideoTracks()[0];
+      console.log(`[webgl-video] Acquired: ${track.label} (${track.getSettings().deviceId?.slice(0, 8)})`);
+      return stream;
     } catch (err) {
-      const isRetryable = err instanceof Error && err.name === 'AbortError';
-      if (isRetryable && attempt < maxRetries) {
-        console.warn(`[webgl-video] Camera busy, retrying in ${retryDelay}ms (attempt ${attempt + 1}/${maxRetries})...`);
+      const isAbort = err instanceof Error && err.name === 'AbortError';
+      if (isAbort && i < attempts.length - 1) {
+        console.warn(`[webgl-video] "${label}" timed out, waiting ${retryDelay}ms before next attempt...`);
         await new Promise((r) => setTimeout(r, retryDelay));
         continue;
       }
@@ -76,7 +103,6 @@ export async function createWebcamStream(options: WebcamStreamOptions = {}): Pro
     }
   }
 
-  // Unreachable, but TypeScript needs it
   throw new Error('Failed to acquire webcam stream');
 }
 
