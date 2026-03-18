@@ -30,11 +30,21 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const animationIdRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const debugRef = useRef<HTMLDivElement>(null);
 
-  const [currentRotation, setCurrentRotation] = useState({ x: 0, y: 0, z: 0 });
   const baseRotationRef = useRef({ x: 0, y: 0, z: 0 });
   const targetRotationRef = useRef({ x: 0, y: 0, z: 0 });
   const isRotatingRef = useRef(false);
+  // Store latest prop values in refs so the animation loop doesn't need to be recreated
+  const isAnimatingRef = useRef(isAnimating);
+  const rotationSpeedRef = useRef(rotationSpeed);
+  const manualRotationRef = useRef(manualRotation);
+  const showDebugInfoRef = useRef(showDebugInfo);
+
+  isAnimatingRef.current = isAnimating;
+  rotationSpeedRef.current = rotationSpeed;
+  manualRotationRef.current = manualRotation;
+  showDebugInfoRef.current = showDebugInfo;
 
   const getSize = useCallback(() => {
     if (width && height) return { w: width, h: height };
@@ -45,37 +55,7 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
     return { w: window.innerWidth, h: window.innerHeight };
   }, [width, height]);
 
-  const animate = useCallback(() => {
-    if (!rendererRef.current || !sceneRef.current || !cameraRef.current || !cubeRef.current) return;
-
-    if (isAnimating && !isRotatingRef.current) {
-      baseRotationRef.current.x += rotationSpeed.x;
-      baseRotationRef.current.y += rotationSpeed.y;
-      baseRotationRef.current.z += rotationSpeed.z;
-    }
-
-    cubeRef.current.rotation.x = baseRotationRef.current.x + manualRotation.x;
-    cubeRef.current.rotation.y = baseRotationRef.current.y + manualRotation.y;
-    cubeRef.current.rotation.z = baseRotationRef.current.z + manualRotation.z;
-
-    setCurrentRotation({
-      x: cubeRef.current.rotation.x,
-      y: cubeRef.current.rotation.y,
-      z: cubeRef.current.rotation.z,
-    });
-
-    rendererRef.current.render(sceneRef.current, cameraRef.current);
-    animationIdRef.current = requestAnimationFrame(animate);
-  }, [isAnimating, rotationSpeed, manualRotation]);
-
-  const stopAnimation = () => {
-    if (animationIdRef.current) {
-      cancelAnimationFrame(animationIdRef.current);
-      animationIdRef.current = null;
-    }
-  };
-
-  const triggerSurpriseRotation = () => {
+  const triggerSurpriseRotation = useCallback(() => {
     if (!cubeRef.current) return;
     isRotatingRef.current = true;
 
@@ -110,26 +90,19 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
     };
 
     animateRotation();
-  };
+  }, []);
 
-  const resetRotation = () => {
+  const resetRotation = useCallback(() => {
     baseRotationRef.current = { x: 0, y: 0, z: 0 };
-  };
-
-  const handleResize = useCallback(() => {
-    if (!cameraRef.current || !rendererRef.current) return;
-    const { w, h } = getSize();
-    cameraRef.current.aspect = w / h;
-    cameraRef.current.updateProjectionMatrix();
-    rendererRef.current.setSize(w, h);
-  }, [getSize]);
+  }, []);
 
   useEffect(() => {
     const mountElement = mountRef.current;
+    if (!mountElement) return;
+
+    let disposed = false;
 
     const init = async () => {
-      if (!mountElement) return;
-
       try {
         const { w, h } = getSize();
 
@@ -161,6 +134,7 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
           frameRate,
           facingMode: "user",
         });
+        if (disposed) { stream.getTracks().forEach(t => t.stop()); return; }
         streamRef.current = stream;
 
         if (videoRef.current) {
@@ -178,6 +152,33 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
           cubeRef.current = cube;
           scene.add(cube);
 
+          // Animation loop — reads from refs, never triggers React re-renders
+          const animate = () => {
+            if (disposed) return;
+            animationIdRef.current = requestAnimationFrame(animate);
+
+            if (!cubeRef.current) return;
+
+            if (isAnimatingRef.current && !isRotatingRef.current) {
+              baseRotationRef.current.x += rotationSpeedRef.current.x;
+              baseRotationRef.current.y += rotationSpeedRef.current.y;
+              baseRotationRef.current.z += rotationSpeedRef.current.z;
+            }
+
+            const mr = manualRotationRef.current;
+            cubeRef.current.rotation.x = baseRotationRef.current.x + mr.x;
+            cubeRef.current.rotation.y = baseRotationRef.current.y + mr.y;
+            cubeRef.current.rotation.z = baseRotationRef.current.z + mr.z;
+
+            // Update debug overlay via DOM — no React setState
+            if (showDebugInfoRef.current && debugRef.current) {
+              const r = cubeRef.current.rotation;
+              debugRef.current.textContent =
+                `X: ${r.x.toFixed(3)}  Y: ${r.y.toFixed(3)}  Z: ${r.z.toFixed(3)}  ${isAnimatingRef.current ? 'ON' : 'OFF'}`;
+            }
+
+            renderer.render(scene, camera);
+          };
           animate();
           onReady?.();
         }
@@ -189,33 +190,39 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
     };
 
     init();
+
+    const handleResize = () => {
+      if (!cameraRef.current || !rendererRef.current) return;
+      const { w, h } = getSize();
+      cameraRef.current.aspect = w / h;
+      cameraRef.current.updateProjectionMatrix();
+      rendererRef.current.setSize(w, h);
+    };
     window.addEventListener('resize', handleResize);
 
     return () => {
-      stopAnimation();
+      disposed = true;
+      if (animationIdRef.current) cancelAnimationFrame(animationIdRef.current);
       window.removeEventListener('resize', handleResize);
       cleanupThreeScene(rendererRef.current, mountElement, streamRef.current);
     };
-  }, [cubeSize, selectedDeviceId, resolution, frameRate, animate, getSize, handleResize, onReady, onError]);
+  }, [cubeSize, selectedDeviceId, resolution.width, resolution.height, frameRate, getSize, onReady, onError]);
 
   useEffect(() => {
     if (rotationTrigger > 0) triggerSurpriseRotation();
-  }, [rotationTrigger]);
+  }, [rotationTrigger, triggerSurpriseRotation]);
 
   useEffect(() => {
     if (resetTrigger > 0) resetRotation();
-  }, [resetTrigger]);
+  }, [resetTrigger, resetRotation]);
 
   useEffect(() => {
     if (surpriseRotation) triggerSurpriseRotation();
-  }, [surpriseRotation]);
+  }, [surpriseRotation, triggerSurpriseRotation]);
 
   return (
-    <div className={className} style={style}>
-      <div
-        ref={mountRef}
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', background: 'transparent' }}
-      />
+    <div className={className} style={{ position: 'relative', ...style }}>
+      <div ref={mountRef} />
       <video
         ref={videoRef}
         autoPlay
@@ -224,21 +231,21 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
         style={{ display: 'none' }}
       />
       {showDebugInfo && (
-        <div style={{
-          position: 'absolute',
-          bottom: 16,
-          left: 16,
-          color: 'white',
-          fontSize: 12,
-          background: 'rgba(0,0,0,0.5)',
-          padding: 8,
-          borderRadius: 4,
-        }}>
-          <div>Rotation X: {currentRotation.x.toFixed(3)}</div>
-          <div>Rotation Y: {currentRotation.y.toFixed(3)}</div>
-          <div>Rotation Z: {currentRotation.z.toFixed(3)}</div>
-          <div>Animation: {isAnimating ? 'ON' : 'OFF'}</div>
-        </div>
+        <div
+          ref={debugRef}
+          style={{
+            position: 'absolute',
+            bottom: 16,
+            left: 16,
+            color: 'white',
+            fontSize: 12,
+            fontFamily: 'monospace',
+            background: 'rgba(0,0,0,0.5)',
+            padding: 8,
+            borderRadius: 4,
+            pointerEvents: 'none',
+          }}
+        />
       )}
     </div>
   );
