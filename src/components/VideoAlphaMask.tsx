@@ -8,8 +8,8 @@ const VideoAlphaMask: React.FC<VideoAlphaMaskProps> = ({
   height = 400,
   className,
   style,
-  videoSrc = "/sample.mp4",
-  alphaSrc = "/alpha-mask.mp4",
+  videoSrc,
+  alphaSrc,
   onReady,
   onError,
 }) => {

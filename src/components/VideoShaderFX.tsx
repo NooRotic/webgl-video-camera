@@ -24,7 +24,7 @@ const VideoShaderFX: React.FC<VideoShaderFXProps> = ({
   height = 400,
   className,
   style,
-  videoSrc = "/sample.mp4",
+  videoSrc,
   vertexShader = DEFAULT_VERTEX_SHADER,
   fragmentShader = DEFAULT_FRAGMENT_SHADER,
   onReady,

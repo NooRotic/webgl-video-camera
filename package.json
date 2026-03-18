@@ -3,19 +3,19 @@
   "version": "0.1.0",
   "description": "Three.js WebGL video texture components for React — webcam cubes, spheres, shader effects, video grids, and tile animations",
   "type": "module",
-  "main": "dist/cjs/index.js",
-  "module": "dist/esm/index.js",
-  "types": "dist/types/index.d.ts",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/types/index.d.ts",
-      "import": "./dist/esm/index.js",
-      "require": "./dist/cjs/index.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
     },
     "./animations": {
-      "types": "./dist/types/core/GridAnimations.d.ts",
-      "import": "./dist/esm/core/GridAnimations.js",
-      "require": "./dist/cjs/core/GridAnimations.js"
+      "types": "./dist/core/GridAnimations.d.ts",
+      "import": "./dist/core/GridAnimations.js",
+      "require": "./dist/core/GridAnimations.cjs"
     }
   },
   "files": [
@@ -65,8 +65,12 @@
     "camera"
   ],
   "license": "MIT",
+  "homepage": "https://github.com/NooRotic/webgl-video-camera#readme",
+  "bugs": {
+    "url": "https://github.com/NooRotic/webgl-video-camera/issues"
+  },
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/NooRotic/webgl-video-camera.git"
   }
 }

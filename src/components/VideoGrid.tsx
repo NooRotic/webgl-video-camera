@@ -1,25 +1,7 @@
 import React from "react";
 import * as THREE from "three";
 import VideoGridControls from "./VideoGridControls";
-
-interface VideoGridProps {
-  gridSize?: number;
-  tileSpacing?: number;
-  tileSize?: number;
-  speed?: number;
-  tiltX?: number;
-  tiltY?: number;
-  fullScreen?: boolean;
-  /** Show the built-in controls panel. Defaults to true when not fullScreen. */
-  showControls?: boolean;
-  animationTrigger?: string;
-  stopAnimationTrigger?: number;
-  rerenderTrigger?: number;
-  centerTrigger?: number;
-  offsetX?: number;
-  offsetY?: number;
-  selectedDeviceId?: string;
-}
+import { VideoGridProps } from "../types";
 
 export default function VideoGrid({
   gridSize: propGridSize = 3,
@@ -165,7 +147,6 @@ export default function VideoGrid({
         // For now, we'll update the local positions
         const newOffsetX = offsetX + deltaX;
         const newOffsetY = offsetY + deltaY;
-        console.log('New offsets:', newOffsetX, newOffsetY);
       }
       
       setIsDragging(false);
@@ -317,17 +298,14 @@ export default function VideoGrid({
           videoConstraints.deviceId = { exact: selectedDeviceId };
         }
         
-        console.log('Requesting camera access with constraints:', videoConstraints);
         stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
         
         if (videoRef.current) {
-          console.log('Setting video source and attempting to play');
           videoRef.current.srcObject = stream;
           
           // Handle video play with proper error handling
           try {
             await videoRef.current.play();
-            console.log('Video is playing successfully');
           } catch (error: unknown) {
             // Ignore AbortError as it's expected when component re-renders
             if (error instanceof Error && error.name !== 'AbortError') {
@@ -337,7 +315,6 @@ export default function VideoGrid({
           
           // Ensure video element is valid before creating texture
           if (videoRef.current && videoRef.current.videoWidth > 0) {
-            console.log('Creating video texture with dimensions:', videoRef.current.videoWidth, 'x', videoRef.current.videoHeight);
             const videoTexture = new THREE.VideoTexture(videoRef.current);
             videoTexture.minFilter = THREE.LinearFilter;
             videoTexture.magFilter = THREE.LinearFilter;
@@ -345,12 +322,10 @@ export default function VideoGrid({
             
             if (threeRef.current) {
               threeRef.current.videoTexture = videoTexture;
-              console.log('Video texture stored in threeRef');
               setVideoTextureReady(true);
             }
           } else {
             // Create a fallback texture if video is not ready
-            console.warn('Video element not ready, waiting for loadeddata event');
             await new Promise((resolve) => {
               if (videoRef.current) {
                 videoRef.current.addEventListener('loadeddata', () => {
@@ -360,7 +335,6 @@ export default function VideoGrid({
                     videoTexture.magFilter = THREE.LinearFilter;
                     videoTexture.format = THREE.RGBAFormat;
                     threeRef.current.videoTexture = videoTexture;
-                    console.log('Video texture created and stored after loadeddata event');
                     setVideoTextureReady(true);
                   }
                   resolve(undefined);
@@ -400,10 +374,8 @@ export default function VideoGrid({
     const { scene, videoTexture } = threeRef.current;
     const planes = threeRef.current.planes;
     
-    console.log('Grid update effect running. VideoTexture available:', !!videoTexture);
     
     if (!videoTexture) {
-      console.warn('No video texture available yet for grid creation');
       return;
     }
     
@@ -463,7 +435,6 @@ export default function VideoGrid({
   React.useEffect(() => {
     if (!animationTrigger || !threeRef.current) return;
     
-    console.log('Animation triggered:', animationTrigger);
     const planes = threeRef.current.planes;
     
     // Calculate proper grid positions based on current settings
@@ -997,7 +968,6 @@ export default function VideoGrid({
         break;
         
       default:
-        console.log('Animation not implemented:', animationTrigger);
     }
   }, [animationTrigger, gridSize, tileSpacing, tiltX, tiltY, offsetX, offsetY]);
 
@@ -1005,7 +975,6 @@ export default function VideoGrid({
   React.useEffect(() => {
     if (!stopAnimationTrigger || !threeRef.current) return;
     
-    console.log('Stopping animations');
     const planes = threeRef.current.planes;
     
     // Reset all planes to their original state
