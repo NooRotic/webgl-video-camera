@@ -547,19 +547,30 @@ export default function App() {
           </div>
         )}
 
-        {/* Loading state */}
-        {needsWebcam && hasCamera === null && (
+        {/* Loading spinner during camera init */}
+        {needsWebcam && !cameraReady && (
           <div style={{
             position: 'absolute',
             inset: 0,
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 10,
-            background: 'rgba(0,0,0,0.7)',
+            background: 'rgba(0,0,0,0.85)',
             borderRadius: isFullscreen ? 0 : 8,
           }}>
-            <p style={{ color: '#888', fontSize: 14 }}>Requesting camera access...</p>
+            <div style={{
+              width: 40,
+              height: 40,
+              border: '3px solid #333',
+              borderTop: '3px solid #3b82f6',
+              borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite',
+              marginBottom: 16,
+            }} />
+            <p style={{ color: '#aaa', fontSize: 14, margin: 0 }}>{status}</p>
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         )}
 
