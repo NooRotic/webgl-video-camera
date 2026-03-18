@@ -17,22 +17,28 @@ const VideoAlphaMask: React.FC<VideoAlphaMaskProps> = ({
   const mountRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const alphaRef = useRef<HTMLVideoElement>(null);
+  const onReadyRef = useRef(onReady);
+  const onErrorRef = useRef(onError);
+  onReadyRef.current = onReady;
+  onErrorRef.current = onError;
 
   useEffect(() => {
     let renderer: THREE.WebGLRenderer | null = null;
     let animationId: number = 0;
     let stream: MediaStream | null = null;
+    let disposed = false;
     const mountEl = mountRef.current;
 
     const init = async () => {
       if (!mountEl || !videoRef.current) return;
 
       try {
-        // If no videoSrc, use webcam for the main video
         if (!videoSrc) {
           stream = await createWebcamStream({ deviceId: selectedDeviceId });
+          if (disposed) { stream.getTracks().forEach(t => t.stop()); return; }
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
+          if (disposed) return;
         }
 
         renderer = createRenderer(mountEl, width, height);
@@ -45,7 +51,6 @@ const VideoAlphaMask: React.FC<VideoAlphaMaskProps> = ({
 
         const geometry = new THREE.PlaneGeometry(2, 2);
 
-        // If alphaSrc is provided, use alpha masking; otherwise render without mask
         if (alphaSrc && alphaRef.current) {
           const alphaTexture = createVideoTexture(alphaRef.current);
           const material = new THREE.MeshBasicMaterial({
@@ -62,14 +67,16 @@ const VideoAlphaMask: React.FC<VideoAlphaMaskProps> = ({
         }
 
         const animate = () => {
+          if (disposed) return;
           animationId = requestAnimationFrame(animate);
           renderer!.render(scene, camera);
         };
         animate();
-        onReady?.();
+        onReadyRef.current?.();
       } catch (error) {
+        if (disposed) return;
         const err = error instanceof Error ? error : new Error(String(error));
-        onError?.(err);
+        onErrorRef.current?.(err);
         console.error("VideoAlphaMask init failed:", err);
       }
     };
@@ -77,9 +84,10 @@ const VideoAlphaMask: React.FC<VideoAlphaMaskProps> = ({
     init();
 
     return () => {
+      disposed = true;
       cleanupThreeScene(renderer, mountEl, stream, animationId);
     };
-  }, [width, height, videoSrc, alphaSrc, selectedDeviceId, onReady, onError]);
+  }, [width, height, videoSrc, alphaSrc, selectedDeviceId]);
 
   return (
     <div className={className} style={style}>

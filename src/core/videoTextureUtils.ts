@@ -33,7 +33,7 @@ export function createVideoTexture(videoElement: HTMLVideoElement): THREE.VideoT
 export async function createWebcamStream(options: WebcamStreamOptions = {}): Promise<MediaStream> {
   const videoConstraints: MediaTrackConstraints = {};
 
-  if (options.deviceId) {
+  if (options.deviceId && options.deviceId.length > 0) {
     videoConstraints.deviceId = { exact: options.deviceId };
   }
   if (options.width) {

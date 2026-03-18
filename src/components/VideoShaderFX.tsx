@@ -33,22 +33,28 @@ const VideoShaderFX: React.FC<VideoShaderFXProps> = ({
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const onReadyRef = useRef(onReady);
+  const onErrorRef = useRef(onError);
+  onReadyRef.current = onReady;
+  onErrorRef.current = onError;
 
   useEffect(() => {
     let renderer: THREE.WebGLRenderer | null = null;
     let animationId: number = 0;
     let stream: MediaStream | null = null;
+    let disposed = false;
     const mountEl = mountRef.current;
 
     const init = async () => {
       if (!mountEl || !videoRef.current) return;
 
       try {
-        // If no videoSrc, use webcam
         if (!videoSrc) {
           stream = await createWebcamStream({ deviceId: selectedDeviceId });
+          if (disposed) { stream.getTracks().forEach(t => t.stop()); return; }
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
+          if (disposed) return;
         }
 
         renderer = createRenderer(mountEl, width, height);
@@ -71,14 +77,16 @@ const VideoShaderFX: React.FC<VideoShaderFXProps> = ({
         scene.add(plane);
 
         const animate = () => {
+          if (disposed) return;
           animationId = requestAnimationFrame(animate);
           renderer!.render(scene, camera);
         };
         animate();
-        onReady?.();
+        onReadyRef.current?.();
       } catch (error) {
+        if (disposed) return;
         const err = error instanceof Error ? error : new Error(String(error));
-        onError?.(err);
+        onErrorRef.current?.(err);
         console.error("VideoShaderFX init failed:", err);
       }
     };
@@ -86,9 +94,10 @@ const VideoShaderFX: React.FC<VideoShaderFXProps> = ({
     init();
 
     return () => {
+      disposed = true;
       cleanupThreeScene(renderer, mountEl, stream, animationId);
     };
-  }, [width, height, videoSrc, selectedDeviceId, vertexShader, fragmentShader, onReady, onError]);
+  }, [width, height, videoSrc, selectedDeviceId, vertexShader, fragmentShader]);
 
   return (
     <div className={className} style={style}>

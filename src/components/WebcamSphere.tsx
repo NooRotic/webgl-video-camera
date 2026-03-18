@@ -8,7 +8,7 @@ const WebcamSphere: React.FC<WebcamSphereProps> = ({
   height = 400,
   className,
   style,
-  selectedDeviceId = '',
+  selectedDeviceId,
   rotationSpeed = 0.01,
   segments = 32,
   onReady,
@@ -16,32 +16,40 @@ const WebcamSphere: React.FC<WebcamSphereProps> = ({
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const onReadyRef = useRef(onReady);
+  const onErrorRef = useRef(onError);
+  onReadyRef.current = onReady;
+  onErrorRef.current = onError;
 
   useEffect(() => {
     let renderer: THREE.WebGLRenderer | null = null;
     let animationId: number = 0;
     let stream: MediaStream | null = null;
+    let disposed = false;
     const mountEl = mountRef.current;
 
     const init = async () => {
       if (!mountEl) return;
 
       try {
+        stream = await createWebcamStream({
+          deviceId: selectedDeviceId,
+          width: 1920,
+          height: 1080,
+        });
+        if (disposed) { stream.getTracks().forEach(t => t.stop()); return; }
+
         renderer = createRenderer(mountEl, width, height);
 
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(70, width / height, 0.1, 1000);
         camera.position.z = 3;
 
-        stream = await createWebcamStream({
-          deviceId: selectedDeviceId || undefined,
-          width: 1920,
-          height: 1080,
-        });
-
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.play();
+          await videoRef.current.play();
+          if (disposed) return;
+
           const videoTexture = createVideoTexture(videoRef.current);
 
           const geometry = new THREE.SphereGeometry(1.2, segments, segments);
@@ -50,16 +58,18 @@ const WebcamSphere: React.FC<WebcamSphereProps> = ({
           scene.add(sphere);
 
           const animate = () => {
+            if (disposed) return;
             animationId = requestAnimationFrame(animate);
             sphere.rotation.y += rotationSpeed;
             renderer!.render(scene, camera);
           };
           animate();
-          onReady?.();
+          onReadyRef.current?.();
         }
       } catch (error) {
+        if (disposed) return;
         const err = error instanceof Error ? error : new Error(String(error));
-        onError?.(err);
+        onErrorRef.current?.(err);
         console.error("WebcamSphere init failed:", err);
       }
     };
@@ -67,9 +77,10 @@ const WebcamSphere: React.FC<WebcamSphereProps> = ({
     init();
 
     return () => {
+      disposed = true;
       cleanupThreeScene(renderer, mountEl, stream, animationId);
     };
-  }, [width, height, selectedDeviceId, rotationSpeed, segments, onReady, onError]);
+  }, [width, height, selectedDeviceId, rotationSpeed, segments]);
 
   return (
     <div className={className} style={style}>
