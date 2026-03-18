@@ -44,6 +44,8 @@ export default function App() {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>('');
   const [status, setStatus] = useState('Initializing...');
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [hasCamera, setHasCamera] = useState<boolean | null>(null); // null = loading
 
   // Controls
   const [scale, setScale] = useState(1);
@@ -67,19 +69,40 @@ export default function App() {
   const alphaInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    // Request permission first so device labels are available
     navigator.mediaDevices
-      .enumerateDevices()
+      .getUserMedia({ video: true })
+      .then((stream) => {
+        // Got permission — stop the stream immediately, then enumerate
+        stream.getTracks().forEach((t) => t.stop());
+        return navigator.mediaDevices.enumerateDevices();
+      })
       .then((all) => {
         const videoInputs = all.filter((d) => d.kind === 'videoinput');
         setDevices(videoInputs);
+        setHasCamera(videoInputs.length > 0);
         if (videoInputs.length > 0) {
           setSelectedDevice(videoInputs[0].deviceId);
           setStatus(`Found ${videoInputs.length} camera(s)`);
+          setCameraError(null);
         } else {
           setStatus('No cameras found');
+          setCameraError('No camera detected. Connect a webcam to use live video components.');
         }
       })
-      .catch((err) => setStatus(`Device enumeration failed: ${err.message}`));
+      .catch((err) => {
+        setHasCamera(false);
+        if (err.name === 'NotAllowedError') {
+          setCameraError('Camera access denied. Allow camera permissions in your browser to use live video.');
+          setStatus('Camera permission denied');
+        } else if (err.name === 'NotFoundError') {
+          setCameraError('No camera detected. Connect a webcam to use live video components.');
+          setStatus('No cameras found');
+        } else {
+          setCameraError(`Camera error: ${err.message}`);
+          setStatus(`Camera error: ${err.message}`);
+        }
+      });
   }, []);
 
   // Reset state on tab change
@@ -102,8 +125,17 @@ export default function App() {
     };
   }, [videoFileUrl, alphaFileUrl]);
 
-  const handleReady = useCallback(() => setStatus(`${activeTab} — ready`), [activeTab]);
-  const handleError = useCallback((err: Error) => setStatus(`Error: ${err.message}`), []);
+  const handleReady = useCallback(() => {
+    setStatus(`${activeTab} — ready`);
+    setCameraError(null);
+  }, [activeTab]);
+
+  const handleError = useCallback((err: Error) => {
+    setStatus(`Error: ${err.message}`);
+    if (err.message.includes('video source') || err.message.includes('getUserMedia') || err.message.includes('NotAllowed') || err.message.includes('NotFound')) {
+      setCameraError(err.message);
+    }
+  }, []);
 
   // File handlers
   const handleVideoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -191,6 +223,9 @@ export default function App() {
   // Determine videoSrc to pass — undefined means "use webcam"
   const effectiveVideoSrc = sourceMode === 'file' && videoFileUrl ? videoFileUrl : undefined;
   const effectiveAlphaSrc = sourceMode === 'file' && alphaFileUrl ? alphaFileUrl : undefined;
+
+  // Does the current tab need a webcam? (not needed if using file source with a file loaded)
+  const needsWebcam = !(tabSupportsFile && sourceMode === 'file' && videoFileUrl);
 
   const commonProps = {
     width: baseWidth,
@@ -415,6 +450,67 @@ export default function App() {
           position: 'relative',
         }}
       >
+        {/* No camera notice */}
+        {needsWebcam && (hasCamera === false || cameraError) && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10,
+            background: 'rgba(0,0,0,0.85)',
+            borderRadius: isFullscreen ? 0 : 8,
+          }}>
+            <div style={{
+              width: 64,
+              height: 64,
+              borderRadius: '50%',
+              background: '#1e1e1e',
+              border: '2px solid #333',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 16,
+            }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="4" />
+                <line x1="1" y1="1" x2="23" y2="23" stroke="#ef4444" strokeWidth="2" />
+              </svg>
+            </div>
+            <p style={{ color: '#e5e5e5', fontSize: 16, fontWeight: 600, margin: '0 0 8px' }}>
+              No Camera Connected
+            </p>
+            <p style={{ color: '#888', fontSize: 13, margin: '0 0 16px', maxWidth: 360, textAlign: 'center', lineHeight: 1.5 }}>
+              {cameraError || 'Connect a webcam and reload the page to use live video components.'}
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              style={smallBtnStyle(false)}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Loading state */}
+        {needsWebcam && hasCamera === null && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10,
+            background: 'rgba(0,0,0,0.7)',
+            borderRadius: isFullscreen ? 0 : 8,
+          }}>
+            <p style={{ color: '#888', fontSize: 14 }}>Requesting camera access...</p>
+          </div>
+        )}
+
         <div
           style={{
             transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) scale(${scale})`,

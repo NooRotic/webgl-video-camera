@@ -13,5 +13,9 @@ export default defineConfig({
   server: {
     port: 3333,
     open: true,
+    watch: {
+      // Root is demo/ so we must explicitly watch src/ for HMR on library changes
+      ignored: ['!**/src/**'],
+    },
   },
 });
