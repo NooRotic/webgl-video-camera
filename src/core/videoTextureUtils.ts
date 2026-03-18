@@ -14,6 +14,10 @@ export interface WebcamStreamOptions {
   height?: number;
   frameRate?: number;
   facingMode?: string;
+  /** Number of retry attempts on AbortError (device busy). Default: 2 */
+  retries?: number;
+  /** Delay in ms between retries. Default: 1000 */
+  retryDelay?: number;
 }
 
 /**
@@ -29,8 +33,13 @@ export function createVideoTexture(videoElement: HTMLVideoElement): THREE.VideoT
 
 /**
  * Request a webcam MediaStream with optional device selection and resolution constraints.
+ * Retries on AbortError (device busy) to handle React StrictMode double-mount races
+ * and Windows exclusive camera locks.
  */
 export async function createWebcamStream(options: WebcamStreamOptions = {}): Promise<MediaStream> {
+  const maxRetries = options.retries ?? 2;
+  const retryDelay = options.retryDelay ?? 1000;
+
   const videoConstraints: MediaTrackConstraints = {};
 
   if (options.deviceId && options.deviceId.length > 0) {
@@ -49,9 +58,26 @@ export async function createWebcamStream(options: WebcamStreamOptions = {}): Pro
     videoConstraints.facingMode = options.facingMode;
   }
 
-  return navigator.mediaDevices.getUserMedia({
+  const constraints = {
     video: Object.keys(videoConstraints).length > 0 ? videoConstraints : true,
-  });
+  };
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (err) {
+      const isRetryable = err instanceof Error && err.name === 'AbortError';
+      if (isRetryable && attempt < maxRetries) {
+        console.warn(`[webgl-video] Camera busy, retrying in ${retryDelay}ms (attempt ${attempt + 1}/${maxRetries})...`);
+        await new Promise((r) => setTimeout(r, retryDelay));
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  // Unreachable, but TypeScript needs it
+  throw new Error('Failed to acquire webcam stream');
 }
 
 /**

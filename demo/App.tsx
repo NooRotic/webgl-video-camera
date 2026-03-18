@@ -74,24 +74,44 @@ export default function App() {
 
     async function initCamera() {
       try {
-        // Step 1: getUserMedia to get permission + discover which device works
-        setStatus('Requesting camera access...');
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        console.log('[camera-init] Starting...');
 
-        // Extract the working device ID from the active track
-        const track = stream.getVideoTracks()[0];
-        const workingDeviceId = track.getSettings().deviceId || '';
+        // Step 1: Try enumerateDevices first — if permissions are pre-approved
+        // (Chrome site settings), this returns full IDs + labels without getUserMedia.
+        setStatus('Detecting cameras...');
+        const preliminary = await navigator.mediaDevices.enumerateDevices();
+        const preliminaryCams = preliminary.filter((d) => d.kind === 'videoinput');
+        console.log('[camera-init] Preliminary enumerate:', preliminaryCams.map(
+          (d) => ({ id: d.deviceId.slice(0, 8), label: d.label })
+        ));
 
-        // Step 2: Release the stream so components can acquire it
-        stream.getTracks().forEach((t) => t.stop());
-
-        // Step 3: Small delay to let the OS release the device handle
-        await new Promise((r) => setTimeout(r, 500));
         if (cancelled) return;
 
-        // Step 4: Enumerate with permission granted — now we get labels + real IDs
-        const all = await navigator.mediaDevices.enumerateDevices();
-        const videoInputs = all.filter((d) => d.kind === 'videoinput');
+        const hasLabels = preliminaryCams.some((d) => d.label.length > 0);
+        let videoInputs: MediaDeviceInfo[];
+
+        if (hasLabels && preliminaryCams.length > 0) {
+          // Permissions already granted — we have real IDs and labels, no need for getUserMedia
+          console.log('[camera-init] Permissions pre-approved, skipping getUserMedia');
+          videoInputs = preliminaryCams;
+        } else if (preliminaryCams.length > 0) {
+          // Devices exist but no labels — need getUserMedia for permission grant
+          console.log('[camera-init] Devices found but no labels, requesting getUserMedia...');
+          setStatus('Requesting camera access...');
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          stream.getTracks().forEach((t) => t.stop());
+          await new Promise((r) => setTimeout(r, 500));
+          if (cancelled) return;
+
+          const all = await navigator.mediaDevices.enumerateDevices();
+          videoInputs = all.filter((d) => d.kind === 'videoinput');
+          console.log('[camera-init] Post-permission enumerate:', videoInputs.map(
+            (d) => ({ id: d.deviceId.slice(0, 8), label: d.label })
+          ));
+        } else {
+          // No video devices at all
+          videoInputs = [];
+        }
 
         if (cancelled) return;
 
@@ -99,23 +119,23 @@ export default function App() {
         setHasCamera(videoInputs.length > 0);
 
         if (videoInputs.length > 0) {
-          // Prefer the device that already worked
-          const defaultDevice = videoInputs.find((d) => d.deviceId === workingDeviceId);
-          setSelectedDevice(defaultDevice ? defaultDevice.deviceId : videoInputs[0].deviceId);
+          setSelectedDevice(videoInputs[0].deviceId);
           setStatus(`Found ${videoInputs.length} camera(s)`);
           setCameraError(null);
+          console.log('[camera-init] Ready with', videoInputs.length, 'camera(s)');
         } else {
           setStatus('No cameras found');
           setCameraError('No camera detected. Connect a webcam to use live video components.');
+          console.log('[camera-init] No cameras found');
         }
 
-        // Step 5: Now safe to mount WebGL components
         setCameraReady(true);
       } catch (err: unknown) {
         if (cancelled) return;
         const error = err instanceof Error ? err : new Error(String(err));
+        console.error('[camera-init] Failed:', error.name, error.message);
         setHasCamera(false);
-        setCameraReady(true); // still allow UI to render (shows error overlay)
+        setCameraReady(true);
 
         if (error.name === 'NotAllowedError') {
           setCameraError('Camera access denied. Allow camera permissions in your browser to use live video.');
