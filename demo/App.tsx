@@ -319,7 +319,7 @@ export default function App() {
   useEffect(() => {
     setDragOffset({ x: 0, y: 0 });
     setScale(1);
-    setShowGridControls(false);
+    setShowGridControls(activeTab === 'grid');
     setVideoElement(null);
     setVideoProgress(0);
 
@@ -590,24 +590,6 @@ export default function App() {
               Reset
             </button>
 
-            <div style={{ flex: 1 }} />
-
-            {/* Debug toggle */}
-            <button onClick={() => setShowDebug((v) => !v)} style={smallBtnStyle(showDebug)}>
-              Debug
-            </button>
-
-            {/* Fullscreen */}
-            <button onClick={toggleFullscreen} style={smallBtnStyle(false)}>
-              Fullscreen
-            </button>
-
-            {/* Grid controls toggle */}
-            {activeTab === 'grid' && (
-              <button onClick={() => setShowGridControls((v) => !v)} style={smallBtnStyle(showGridControls)}>
-                Grid Controls
-              </button>
-            )}
           </div>
         )}
 
@@ -736,16 +718,30 @@ export default function App() {
           </div>
         )}
 
-        {/* Source selector — for tabs that support file input */}
+        {/* Source selector + action buttons */}
         {!isFullscreen && tabSupportsFile && (
           <div style={panelStyle}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: sourceMode === 'file' ? 10 : 0 }}>
               <span style={{ fontSize: 13, color: '#888', marginRight: 4 }}>Source:</span>
-              <button onClick={() => setSourceMode('webcam')} style={smallBtnStyle(sourceMode === 'webcam')}>
+              <button onClick={() => setSourceMode('webcam')} style={btnStyle(sourceMode === 'webcam')}>
                 Webcam
               </button>
-              <button onClick={() => setSourceMode('file')} style={smallBtnStyle(sourceMode === 'file')}>
+              <button onClick={() => setSourceMode('file')} style={btnStyle(sourceMode === 'file')}>
                 Video File
+              </button>
+
+              <div style={{ flex: 1 }} />
+
+              {activeTab === 'grid' && (
+                <button onClick={() => setShowGridControls((v) => !v)} style={btnStyle(showGridControls)}>
+                  Grid Controls
+                </button>
+              )}
+              <button onClick={toggleFullscreen} style={btnStyle(false)}>
+                Fullscreen
+              </button>
+              <button onClick={() => setShowDebug((v) => !v)} style={btnStyle(showDebug)}>
+                Debug
               </button>
             </div>
 

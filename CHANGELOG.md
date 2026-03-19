@@ -2,6 +2,20 @@
 
 All notable changes to `@riptheai/webgl-video` will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- VideoGrid zoom uses camera distance (`camera.position.z`) instead of per-plane scale — eliminates spacing distortion when zooming
+- Initial camera position uses `getCameraZ()` instead of hardcoded `z=5` — camera now correctly centers on the grid
+- `useStableCallbacks` hook extracted, icon deduplication, WebcamSphere resolution fix, VideoGrid reset defaults (PR #6)
+
+### Changed
+- Grid Controls, Fullscreen, and Debug buttons moved to Source row (right-aligned)
+- Grid controls panel auto-shows when grid tab is selected
+
+### Documentation
+- README screenshots and footer added (PR #7)
+
 ## [0.1.0] - 2026-03-19
 
 Initial public release.

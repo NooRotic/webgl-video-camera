@@ -162,14 +162,12 @@ export default function VideoGrid({
 
   const handleWheel = React.useCallback((e: WheelEvent) => {
     if (!threeRef.current || !isHovering) return;
-    
-    const scaleFactor = e.deltaY > 0 ? 0.95 : 1.05;
-    const planes = threeRef.current.planes;
-    
-    planes.forEach((plane) => {
-      plane.scale.multiplyScalar(scaleFactor);
-    });
-    
+
+    // Zoom by adjusting camera distance — scales tiles AND spacing uniformly
+    const { camera } = threeRef.current;
+    const zoomFactor = e.deltaY > 0 ? 1.05 : 0.95;
+    camera.position.z = Math.max(0.5, Math.min(50, camera.position.z * zoomFactor));
+
     e.preventDefault();
   }, [isHovering]);
 
@@ -233,10 +231,9 @@ export default function VideoGrid({
       
       renderer = createRenderer(mountRef.current, containerWidth, containerHeight, { clearColor: 0x000000, clearAlpha: 0 });
       scene = new THREE.Scene();
-      // Initialize camera with default position (will be updated by separate effect)
       const fov = 70;
       camera = new THREE.PerspectiveCamera(fov, containerWidth / containerHeight, 0.1, 1000);
-      camera.position.z = 5; // Default value
+      camera.position.z = getCameraZ();
       
       initializedRef.current = true;
       
@@ -1019,7 +1016,7 @@ export default function VideoGrid({
               🖱️ Drag to Move
             </div>
             <div style={{ color: 'white', fontSize: '14px', fontWeight: '500' }}>
-              🔍 Scroll to Scale
+              🔍 Scroll to Zoom
             </div>
             {isDragging && (
               <div style={{ color: '#4ade80', fontSize: '14px', fontWeight: '600' }}>
@@ -1046,11 +1043,9 @@ export default function VideoGrid({
             <button
               onMouseDown={(e) => {
                 e.stopPropagation();
-                // Reset scale
+                // Reset camera zoom to computed position
                 if (threeRef.current) {
-                  threeRef.current.planes.forEach((plane) => {
-                    plane.scale.set(1, 1, 1);
-                  });
+                  threeRef.current.camera.position.z = getCameraZ();
                 }
               }}
               style={{
@@ -1068,9 +1063,9 @@ export default function VideoGrid({
               onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(59, 130, 246, 1)'}
               onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.9)'}
             >
-              Reset Scale
+              Reset Zoom
             </button>
-            
+
             <button
               onMouseDown={(e) => {
                 e.stopPropagation();

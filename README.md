@@ -130,7 +130,7 @@ All VHS parameters are stored in refs — changing them via sliders updates the 
 
 The `VideoGrid` component ships with 12 built-in tile animations accessible via the `animationTrigger` prop:
 
-`spread_apart` · `flip_tiles` · `vortex_spiral` · `explode_fragments` · `wave_motion` · `scale_to_zero` · `cascade_fall` · `rotate_carousel` · `matrix_rain` · `bounce_physics` · `spiral_galaxy` · `domino_effect`
+`spread_apart` · `flip_tiles` · `scale_to_zero` · `wave_motion` · `spiral_out` · `cascade_fall` · `bounce_scale` · `rotation_chaos` · `orbit_center` · `accordion_fold` · `explode_fragments` · `vortex_spiral`
 
 For programmatic control, import the animation engine directly:
 
