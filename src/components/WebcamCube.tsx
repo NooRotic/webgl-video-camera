@@ -11,6 +11,7 @@ const WebcamCube: React.FC<WebcamCubeProps> = ({
   selectedDeviceId,
   mediaStream,
   rotationSpeed = { x: 0.01, y: 0.01 },
+  cubeSize = 1.5,
   onReady,
   onError,
 }) => {
@@ -58,7 +59,7 @@ const WebcamCube: React.FC<WebcamCubeProps> = ({
 
           const videoTexture = createVideoTexture(videoRef.current);
 
-          const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+          const geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
           const material = new THREE.MeshBasicMaterial({ map: videoTexture });
           const cube = new THREE.Mesh(geometry, material);
           scene.add(cube);
@@ -87,7 +88,7 @@ const WebcamCube: React.FC<WebcamCubeProps> = ({
       disposed = true;
       cleanupThreeScene(renderer, mountEl, ownStream, animationId);
     };
-  }, [width, height, selectedDeviceId, mediaStream]);
+  }, [width, height, selectedDeviceId, mediaStream, cubeSize]);
 
   return (
     <div className={className} style={style}>

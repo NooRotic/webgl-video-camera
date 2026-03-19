@@ -24,6 +24,8 @@ export interface BaseWebGLVideoProps {
 export interface WebcamCubeProps extends BaseWebGLVideoProps {
   /** Rotation speed per frame for each axis */
   rotationSpeed?: { x: number; y: number };
+  /** Size of the cube geometry. Defaults to 1.5. */
+  cubeSize?: number;
 }
 
 export interface WebcamSphereProps extends BaseWebGLVideoProps {

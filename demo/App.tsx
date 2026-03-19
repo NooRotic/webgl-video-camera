@@ -603,8 +603,8 @@ export default function App() {
               </div>
             )}
 
-            {/* Cube size — only for animated cube */}
-            {activeTab === 'animated' && (
+            {/* Cube size — for cube tabs */}
+            {(activeTab === 'cube' || activeTab === 'animated') && (
               <>
                 <div style={{ borderTop: '1px solid #222', margin: '10px 0' }} />
                 <SliderRow label="Cube Size" value={cubeSize} min={0.5} max={5} step={0.1} onChange={setCubeSize} />
@@ -741,7 +741,7 @@ export default function App() {
             transition: isDragging ? 'none' : 'transform 0.1s ease-out',
           }}>
             {activeStream && activeTab === 'cube' && (
-              <WebcamCube {...commonProps} rotationSpeed={cubeRotSpeed} />
+              <WebcamCube {...commonProps} rotationSpeed={cubeRotSpeed} cubeSize={cubeSize} />
             )}
             {activeStream && activeTab === 'sphere' && (
               <WebcamSphere {...commonProps} rotationSpeed={sphereRotSpeed} />
