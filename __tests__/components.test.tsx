@@ -100,6 +100,7 @@ describe('Component exports', () => {
     expect(typeof exports.createWebcamStream).toBe('function');
     expect(typeof exports.createRenderer).toBe('function');
     expect(typeof exports.cleanupThreeScene).toBe('function');
+    expect(typeof exports.waitForVideoReady).toBe('function');
   });
 });
 

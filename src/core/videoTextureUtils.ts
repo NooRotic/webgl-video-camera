@@ -107,6 +107,20 @@ export async function createWebcamStream(options: WebcamStreamOptions = {}): Pro
 }
 
 /**
+ * Wait for a video element to have enough data to create a texture.
+ * Uses addEventListener with { once: true } to avoid leaking handlers on unmount.
+ */
+export function waitForVideoReady(video: HTMLVideoElement): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (video.readyState >= 2) { resolve(); return; }
+    const onData = () => { video.removeEventListener('error', onErr); resolve(); };
+    const onErr = () => { video.removeEventListener('loadeddata', onData); reject(new Error('Failed to load video file')); };
+    video.addEventListener('loadeddata', onData, { once: true });
+    video.addEventListener('error', onErr, { once: true });
+  });
+}
+
+/**
  * Create a WebGLRenderer attached to a container element.
  */
 export function createRenderer(

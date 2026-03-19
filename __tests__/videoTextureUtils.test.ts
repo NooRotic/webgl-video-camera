@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import {
   createVideoTexture,
   cleanupThreeScene,
+  waitForVideoReady,
 } from '../src/core/videoTextureUtils';
 
 describe('createVideoTexture', () => {
@@ -21,6 +22,41 @@ describe('createVideoTexture', () => {
     const texture = createVideoTexture(video);
 
     expect(texture.image).toBe(video);
+  });
+});
+
+describe('waitForVideoReady', () => {
+  it('resolves immediately if video readyState >= 2', async () => {
+    const video = document.createElement('video');
+    Object.defineProperty(video, 'readyState', { value: 3 });
+    await expect(waitForVideoReady(video)).resolves.toBeUndefined();
+  });
+
+  it('resolves when loadeddata fires', async () => {
+    const video = document.createElement('video');
+    Object.defineProperty(video, 'readyState', { value: 0 });
+    const promise = waitForVideoReady(video);
+    video.dispatchEvent(new Event('loadeddata'));
+    await expect(promise).resolves.toBeUndefined();
+  });
+
+  it('rejects when error fires', async () => {
+    const video = document.createElement('video');
+    Object.defineProperty(video, 'readyState', { value: 0 });
+    const promise = waitForVideoReady(video);
+    video.dispatchEvent(new Event('error'));
+    await expect(promise).rejects.toThrow('Failed to load video file');
+  });
+
+  it('cleans up the other listener on resolve', async () => {
+    const video = document.createElement('video');
+    Object.defineProperty(video, 'readyState', { value: 0 });
+    const removeSpy = vi.spyOn(video, 'removeEventListener');
+    const promise = waitForVideoReady(video);
+    video.dispatchEvent(new Event('loadeddata'));
+    await promise;
+    expect(removeSpy).toHaveBeenCalledWith('error', expect.any(Function));
+    removeSpy.mockRestore();
   });
 });
 

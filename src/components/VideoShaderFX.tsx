@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from "react";
 import * as THREE from "three";
 import { VideoShaderFXProps } from "../types";
-import { createVideoTexture, createWebcamStream, createRenderer, cleanupThreeScene } from "../core/videoTextureUtils";
+import { createVideoTexture, createWebcamStream, createRenderer, cleanupThreeScene, waitForVideoReady } from "../core/videoTextureUtils";
 
 const DEFAULT_VERTEX_SHADER = `
 varying vec2 vUv;
@@ -64,13 +64,7 @@ const VideoShaderFX: React.FC<VideoShaderFXProps> = ({
         } else {
           // Clear any leftover srcObject (webcam) — src attribute won't load while srcObject is set
           videoRef.current.srcObject = null;
-          // Wait for file video to load before creating texture
-          await new Promise<void>((resolve, reject) => {
-            const v = videoRef.current!;
-            if (v.readyState >= 2) { resolve(); return; }
-            v.onloadeddata = () => resolve();
-            v.onerror = () => reject(new Error('Failed to load video file'));
-          });
+          await waitForVideoReady(videoRef.current);
           if (disposed) return;
         }
         await videoRef.current.play();
@@ -126,7 +120,6 @@ const VideoShaderFX: React.FC<VideoShaderFXProps> = ({
       <video
         ref={videoRef}
         src={videoSrc || undefined}
-        autoPlay
         loop={!!videoSrc}
         muted
         playsInline

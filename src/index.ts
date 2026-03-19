@@ -17,6 +17,7 @@ export {
   createWebcamStream,
   createRenderer,
   cleanupThreeScene,
+  waitForVideoReady,
 } from './core/videoTextureUtils';
 
 // Types
