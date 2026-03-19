@@ -6,6 +6,7 @@ export { default as WebcamSphere } from './components/WebcamSphere';
 export { default as VideoShaderFX } from './components/VideoShaderFX';
 export { default as VideoAlphaMask } from './components/VideoAlphaMask';
 export { default as AnimatedVideoCube } from './components/AnimatedVideoCube';
+export { default as VideoVHSEffect } from './components/VideoVHSEffect';
 
 // Core (non-React)
 export { gridAnimations, GridAnimationController } from './core/GridAnimations';
@@ -28,6 +29,7 @@ export type {
   VideoGridProps,
   VideoGridControlsProps,
   AnimatedVideoCubeProps,
+  VideoVHSEffectProps,
 } from './types';
 
 export type { GridAnimation } from './core/GridAnimations';

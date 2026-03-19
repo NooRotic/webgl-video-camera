@@ -96,3 +96,16 @@ export interface AnimatedVideoCubeProps extends BaseWebGLVideoProps {
   /** Show debug rotation info overlay */
   showDebugInfo?: boolean;
 }
+
+export interface VideoVHSEffectProps extends BaseWebGLVideoProps {
+  /** Overall effect intensity (0 = off, 1 = full). Defaults to 1. */
+  intensity?: number;
+  /** Scanline density multiplier. Defaults to 1. */
+  scanlineIntensity?: number;
+  /** Chromatic aberration spread. Defaults to 1. */
+  aberrationIntensity?: number;
+  /** Noise grain amount. Defaults to 1. */
+  noiseIntensity?: number;
+  /** Enable periodic tracking glitch. Defaults to true. */
+  trackingGlitch?: boolean;
+}

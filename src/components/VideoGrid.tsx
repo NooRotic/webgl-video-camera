@@ -20,11 +20,21 @@ export default function VideoGrid({
   offsetY = 0,
   selectedDeviceId = '',
   mediaStream,
+  videoSrc,
+  onReady,
+  onError,
+  onVideoElement,
 }: VideoGridProps = {}) {
   const mountRef = React.useRef<HTMLDivElement>(null);
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const initializedRef = React.useRef(false);
   const speedRef = React.useRef(0); // Ref to access current speed in animation loop
+  const onReadyRef = React.useRef(onReady);
+  const onErrorRef = React.useRef(onError);
+  const onVideoElementRef = React.useRef(onVideoElement);
+  onReadyRef.current = onReady;
+  onErrorRef.current = onError;
+  onVideoElementRef.current = onVideoElement;
   const threeRef = React.useRef<{
     renderer: THREE.WebGLRenderer;
     scene: THREE.Scene;
@@ -281,35 +291,49 @@ export default function VideoGrid({
   // Handle video device setup separately
   React.useEffect(() => {
     if (!initializedRef.current) return;
-    
+
     let ownStream: MediaStream | null = null;
+    let disposed = false;
 
     const setupVideo = async () => {
       try {
         setVideoTextureReady(false); // Reset state
 
-        let stream: MediaStream;
-        if (mediaStream) {
-          stream = mediaStream;
-        } else {
-          // Configure video constraints with device selection
-          const videoConstraints: MediaTrackConstraints = {
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          };
+        if (videoRef.current) {
+          if (!videoSrc) {
+            // Webcam / stream path
+            let stream: MediaStream;
+            if (mediaStream) {
+              stream = mediaStream;
+            } else {
+              // Configure video constraints with device selection
+              const videoConstraints: MediaTrackConstraints = {
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
+              };
 
-          // Add device ID if specified
-          if (selectedDeviceId) {
-            videoConstraints.deviceId = { exact: selectedDeviceId };
+              // Add device ID if specified
+              if (selectedDeviceId) {
+                videoConstraints.deviceId = { exact: selectedDeviceId };
+              }
+
+              ownStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+              if (disposed) { ownStream.getTracks().forEach(t => t.stop()); return; }
+              stream = ownStream;
+            }
+            videoRef.current.srcObject = stream;
+          } else {
+            // File path: clear srcObject, wait for loadeddata
+            videoRef.current.srcObject = null;
+            await new Promise<void>((resolve, reject) => {
+              const v = videoRef.current!;
+              if (v.readyState >= 2) { resolve(); return; }
+              v.onloadeddata = () => resolve();
+              v.onerror = () => reject(new Error('Failed to load video file'));
+            });
+            if (disposed) return;
           }
 
-          ownStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
-          stream = ownStream;
-        }
-        
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          
           // Handle video play with proper error handling
           try {
             await videoRef.current.play();
@@ -319,14 +343,16 @@ export default function VideoGrid({
               console.error('Video play error:', error);
             }
           }
-          
+          if (disposed) return;
+          onVideoElementRef.current?.(videoRef.current);
+
           // Ensure video element is valid before creating texture
           if (videoRef.current && videoRef.current.videoWidth > 0) {
             const videoTexture = new THREE.VideoTexture(videoRef.current);
             videoTexture.minFilter = THREE.LinearFilter;
             videoTexture.magFilter = THREE.LinearFilter;
             videoTexture.colorSpace = THREE.SRGBColorSpace;
-            
+
             if (threeRef.current) {
               threeRef.current.videoTexture = videoTexture;
               setVideoTextureReady(true);
@@ -351,20 +377,25 @@ export default function VideoGrid({
               }
             });
           }
+          onReadyRef.current?.();
         }
       } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        onErrorRef.current?.(err);
         console.error('Failed to setup video:', error);
       }
     };
 
     setupVideo();
-    
+
     return () => {
+      disposed = true;
+      onVideoElementRef.current?.(null);
       if (ownStream) {
         ownStream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [selectedDeviceId, mediaStream]); // Re-setup video when device changes
+  }, [selectedDeviceId, mediaStream, videoSrc]); // Re-setup video when source changes
   
   // Update camera position when grid size changes
   React.useEffect(() => {
@@ -1117,7 +1148,8 @@ export default function VideoGrid({
         
         <video
           ref={videoRef}
-          autoPlay
+          src={videoSrc || undefined}
+          loop={!!videoSrc}
           muted
           playsInline
           style={{ position: 'absolute', top: -9999, left: -9999, width: 1, height: 1, opacity: 0 }}

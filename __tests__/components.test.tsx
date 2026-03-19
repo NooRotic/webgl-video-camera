@@ -82,6 +82,7 @@ describe('Component exports', () => {
     expect(exports.VideoAlphaMask).toBeDefined();
     expect(exports.VideoGrid).toBeDefined();
     expect(exports.VideoGridControls).toBeDefined();
+    expect(exports.VideoVHSEffect).toBeDefined();
   });
 
   it('exports animation engine', async () => {
@@ -122,6 +123,12 @@ describe('Component render contracts', () => {
     const { AnimatedVideoCube } = await import('../src/index');
     const element = React.createElement(AnimatedVideoCube, { width: 100, height: 100, showDebugInfo: true });
     expect(element.type).toBe(AnimatedVideoCube);
+  });
+
+  it('VideoVHSEffect is a valid React component', async () => {
+    const { VideoVHSEffect } = await import('../src/index');
+    const element = React.createElement(VideoVHSEffect, { width: 100, height: 100, intensity: 0.5 });
+    expect(element.type).toBe(VideoVHSEffect);
   });
 
   it('VideoGridControls is a valid React component with required props', async () => {
