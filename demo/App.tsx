@@ -6,18 +6,20 @@ import {
   VideoShaderFX,
   VideoAlphaMask,
   VideoGrid,
+  VideoVHSEffect,
 } from '../src';
 
-type TabName = 'cube' | 'sphere' | 'animated' | 'shader' | 'alpha' | 'grid';
+type TabName = 'cube' | 'sphere' | 'animated' | 'shader' | 'alpha' | 'grid' | 'vhs';
 type SourceMode = 'webcam' | 'file';
 
 const TABS: { id: TabName; label: string; description: string; supportsFile?: boolean }[] = [
-  { id: 'cube', label: 'Webcam Cube', description: 'Rotating 3D cube with webcam texture' },
-  { id: 'sphere', label: 'Webcam Sphere', description: 'Rotating sphere with webcam video mapped to surface' },
-  { id: 'animated', label: 'Animated Cube', description: 'Cube with configurable rotation and debug overlay' },
+  { id: 'cube', label: 'Webcam Cube', description: 'Rotating 3D cube with webcam texture', supportsFile: true },
+  { id: 'sphere', label: 'Webcam Sphere', description: 'Rotating sphere with webcam video mapped to surface', supportsFile: true },
+  { id: 'animated', label: 'Animated Cube', description: 'Cube with configurable rotation and debug overlay', supportsFile: true },
   { id: 'shader', label: 'Shader FX', description: 'Video processed through GLSL grayscale shader', supportsFile: true },
   { id: 'alpha', label: 'Alpha Mask', description: 'Video with alpha mask compositing', supportsFile: true },
-  { id: 'grid', label: 'Video Grid', description: 'NxN tile grid with 12 animations' },
+  { id: 'grid', label: 'Video Grid', description: 'NxN tile grid with 12 animations', supportsFile: true },
+  { id: 'vhs', label: 'VHS Effect', description: 'Retro VHS filter with scanlines, chromatic aberration, noise, and tracking glitch', supportsFile: true },
 ];
 
 const btnStyle = (active: boolean) => ({
@@ -104,6 +106,13 @@ export default function App() {
   const [cubeSize, setCubeSize] = useState(2);
   // Stored speeds for pause/resume
   const pausedSpeedsRef = useRef<{ x: number; y: number; z: number; sphere: number } | null>(null);
+
+  // VHS controls
+  const [vhsIntensity, setVhsIntensity] = useState(1);
+  const [vhsScanlines, setVhsScanlines] = useState(1);
+  const [vhsAberration, setVhsAberration] = useState(1);
+  const [vhsNoise, setVhsNoise] = useState(1);
+  const [vhsTracking, setVhsTracking] = useState(true);
 
   // Mouse drag
   const [isDragging, setIsDragging] = useState(false);
@@ -707,6 +716,28 @@ export default function App() {
           </div>
         )}
 
+        {/* VHS controls panel */}
+        {!isFullscreen && activeTab === 'vhs' && (
+          <div style={{ ...panelStyle, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 13, color: '#888', fontWeight: 600, marginBottom: 2 }}>VHS Effect</span>
+            <SliderRow label="Intensity" value={vhsIntensity} min={0} max={2} step={0.05} onChange={setVhsIntensity} />
+            <SliderRow label="Scanlines" value={vhsScanlines} min={0} max={3} step={0.05} onChange={setVhsScanlines} />
+            <SliderRow label="Aberration" value={vhsAberration} min={0} max={5} step={0.1} onChange={setVhsAberration} />
+            <SliderRow label="Noise" value={vhsNoise} min={0} max={3} step={0.05} onChange={setVhsNoise} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+              <span style={labelStyle}>Tracking</span>
+              <button onClick={() => setVhsTracking((v) => !v)} style={smallBtnStyle(vhsTracking)}>
+                {vhsTracking ? 'On' : 'Off'}
+              </button>
+              <div style={{ flex: 1 }} />
+              <button onClick={() => { setVhsIntensity(1); setVhsScanlines(1); setVhsAberration(1); setVhsNoise(1); setVhsTracking(true); }}
+                style={smallBtnStyle(false)}>
+                Reset
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Source selector — for tabs that support file input */}
         {!isFullscreen && tabSupportsFile && (
           <div style={panelStyle}>
@@ -750,7 +781,7 @@ export default function App() {
 
                 {!videoFileUrl && (
                   <p style={{ fontSize: 11, color: '#555', margin: 0 }}>
-                    Select a video file to apply the {activeTab === 'shader' ? 'shader effect' : 'alpha mask'} to.
+                    Select a video file to use as the source.
                     Without a file, the component will fall back to webcam.
                   </p>
                 )}
@@ -871,14 +902,14 @@ export default function App() {
             transformOrigin: 'center center',
             transition: isDragging ? 'none' : 'transform 0.1s ease-out',
           }}>
-            {activeStream && activeTab === 'cube' && (
-              <WebcamCube {...commonProps} rotationSpeed={cubeRotSpeed} cubeSize={cubeSize} />
+            {(activeStream || !needsWebcam) && activeTab === 'cube' && (
+              <WebcamCube {...commonProps} rotationSpeed={cubeRotSpeed} cubeSize={cubeSize} videoSrc={effectiveVideoSrc} onVideoElement={handleVideoElement} />
             )}
-            {activeStream && activeTab === 'sphere' && (
-              <WebcamSphere {...commonProps} rotationSpeed={sphereRotSpeed} />
+            {(activeStream || !needsWebcam) && activeTab === 'sphere' && (
+              <WebcamSphere {...commonProps} rotationSpeed={sphereRotSpeed} videoSrc={effectiveVideoSrc} onVideoElement={handleVideoElement} />
             )}
-            {activeStream && activeTab === 'animated' && (
-              <AnimatedVideoCube {...commonProps} rotationSpeed={animatedRotSpeed} isAnimating={isAnimating} cubeSize={cubeSize} showDebugInfo />
+            {(activeStream || !needsWebcam) && activeTab === 'animated' && (
+              <AnimatedVideoCube {...commonProps} rotationSpeed={animatedRotSpeed} isAnimating={isAnimating} cubeSize={cubeSize} showDebugInfo videoSrc={effectiveVideoSrc} onVideoElement={handleVideoElement} />
             )}
             {(activeStream || !needsWebcam) && activeTab === 'shader' && (
               <VideoShaderFX {...commonProps} videoSrc={effectiveVideoSrc} onVideoElement={handleVideoElement} />
@@ -886,8 +917,13 @@ export default function App() {
             {(activeStream || !needsWebcam) && activeTab === 'alpha' && (
               <VideoAlphaMask {...commonProps} videoSrc={effectiveVideoSrc} alphaSrc={effectiveAlphaSrc} onVideoElement={handleVideoElement} />
             )}
-            {activeStream && activeTab === 'grid' && (
-              <VideoGrid {...commonProps} width={baseWidth} height={baseHeight} showControls={showGridControls} />
+            {(activeStream || !needsWebcam) && activeTab === 'grid' && (
+              <VideoGrid {...commonProps} width={baseWidth} height={baseHeight} showControls={showGridControls} videoSrc={effectiveVideoSrc} onVideoElement={handleVideoElement} />
+            )}
+            {(activeStream || !needsWebcam) && activeTab === 'vhs' && (
+              <VideoVHSEffect {...commonProps} videoSrc={effectiveVideoSrc} onVideoElement={handleVideoElement}
+                intensity={vhsIntensity} scanlineIntensity={vhsScanlines} aberrationIntensity={vhsAberration}
+                noiseIntensity={vhsNoise} trackingGlitch={vhsTracking} />
             )}
           </div>
 

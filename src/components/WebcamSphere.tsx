@@ -10,19 +10,22 @@ const WebcamSphere: React.FC<WebcamSphereProps> = ({
   style,
   selectedDeviceId,
   mediaStream,
+  videoSrc,
   rotationSpeed = 0.01,
   segments = 32,
   onReady,
   onError,
+  onVideoElement,
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const onReadyRef = useRef(onReady);
   const onErrorRef = useRef(onError);
+  const onVideoElementRef = useRef(onVideoElement);
   onReadyRef.current = onReady;
   onErrorRef.current = onError;
+  onVideoElementRef.current = onVideoElement;
 
-  // Store rotationSpeed in ref so animation loop reads latest value without re-init
   const rotationSpeedRef = useRef(rotationSpeed);
   rotationSpeedRef.current = rotationSpeed;
 
@@ -34,21 +37,34 @@ const WebcamSphere: React.FC<WebcamSphereProps> = ({
     const mountEl = mountRef.current;
 
     const init = async () => {
-      if (!mountEl) return;
+      if (!mountEl || !videoRef.current) return;
 
       try {
-        let stream: MediaStream;
-        if (mediaStream) {
-          stream = mediaStream;
+        if (!videoSrc) {
+          if (mediaStream) {
+            videoRef.current.srcObject = mediaStream;
+          } else {
+            ownStream = await createWebcamStream({
+              deviceId: selectedDeviceId,
+              width: 1920,
+              height: 1080,
+            });
+            if (disposed) { ownStream.getTracks().forEach(t => t.stop()); return; }
+            videoRef.current.srcObject = ownStream;
+          }
         } else {
-          ownStream = await createWebcamStream({
-            deviceId: selectedDeviceId,
-            width: 1920,
-            height: 1080,
+          videoRef.current.srcObject = null;
+          await new Promise<void>((resolve, reject) => {
+            const v = videoRef.current!;
+            if (v.readyState >= 2) { resolve(); return; }
+            v.onloadeddata = () => resolve();
+            v.onerror = () => reject(new Error('Failed to load video file'));
           });
-          if (disposed) { ownStream.getTracks().forEach(t => t.stop()); return; }
-          stream = ownStream;
+          if (disposed) return;
         }
+        await videoRef.current.play();
+        if (disposed) return;
+        onVideoElementRef.current?.(videoRef.current);
 
         renderer = createRenderer(mountEl, width, height);
 
@@ -56,27 +72,20 @@ const WebcamSphere: React.FC<WebcamSphereProps> = ({
         const camera = new THREE.PerspectiveCamera(70, width / height, 0.1, 1000);
         camera.position.z = 3;
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
+        const videoTexture = createVideoTexture(videoRef.current);
+        const geometry = new THREE.SphereGeometry(1.2, segments, segments);
+        const material = new THREE.MeshBasicMaterial({ map: videoTexture });
+        const sphere = new THREE.Mesh(geometry, material);
+        scene.add(sphere);
+
+        const animate = () => {
           if (disposed) return;
-
-          const videoTexture = createVideoTexture(videoRef.current);
-
-          const geometry = new THREE.SphereGeometry(1.2, segments, segments);
-          const material = new THREE.MeshBasicMaterial({ map: videoTexture });
-          const sphere = new THREE.Mesh(geometry, material);
-          scene.add(sphere);
-
-          const animate = () => {
-            if (disposed) return;
-            animationId = requestAnimationFrame(animate);
-            sphere.rotation.y += rotationSpeedRef.current;
-            renderer!.render(scene, camera);
-          };
-          animate();
-          onReadyRef.current?.();
-        }
+          animationId = requestAnimationFrame(animate);
+          sphere.rotation.y += rotationSpeedRef.current;
+          renderer!.render(scene, camera);
+        };
+        animate();
+        onReadyRef.current?.();
       } catch (error) {
         if (disposed) return;
         const err = error instanceof Error ? error : new Error(String(error));
@@ -89,14 +98,22 @@ const WebcamSphere: React.FC<WebcamSphereProps> = ({
 
     return () => {
       disposed = true;
+      onVideoElementRef.current?.(null);
       cleanupThreeScene(renderer, mountEl, ownStream, animationId);
     };
-  }, [width, height, selectedDeviceId, mediaStream, segments]);
+  }, [width, height, selectedDeviceId, mediaStream, videoSrc, segments]);
 
   return (
     <div className={className} style={style}>
       <div ref={mountRef} />
-      <video ref={videoRef} style={{ display: "none" }} playsInline muted />
+      <video
+        ref={videoRef}
+        src={videoSrc || undefined}
+        loop={!!videoSrc}
+        muted
+        playsInline
+        style={{ display: "none" }}
+      />
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from "react";
+import React, { useRef, useEffect, useCallback } from "react";
 import * as THREE from "three";
 import { AnimatedVideoCubeProps } from "../types";
 import { createVideoTexture, createWebcamStream, cleanupThreeScene } from "../core/videoTextureUtils";
@@ -13,6 +13,7 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
   cubeSize = 2,
   selectedDeviceId,
   mediaStream,
+  videoSrc,
   resolution = { width: 1920, height: 1080 },
   frameRate = 60,
   rotationTrigger = 0,
@@ -22,6 +23,7 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
   showDebugInfo = false,
   onReady,
   onError,
+  onVideoElement,
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -41,11 +43,17 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
   const rotationSpeedRef = useRef(rotationSpeed);
   const manualRotationRef = useRef(manualRotation);
   const showDebugInfoRef = useRef(showDebugInfo);
+  const onReadyRef = useRef(onReady);
+  const onErrorRef = useRef(onError);
+  const onVideoElementRef = useRef(onVideoElement);
 
   isAnimatingRef.current = isAnimating;
   rotationSpeedRef.current = rotationSpeed;
   manualRotationRef.current = manualRotation;
   showDebugInfoRef.current = showDebugInfo;
+  onReadyRef.current = onReady;
+  onErrorRef.current = onError;
+  onVideoElementRef.current = onVideoElement;
 
   const getSize = useCallback(() => {
     if (width && height) return { w: width, h: height };
@@ -128,25 +136,37 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
         directionalLight.position.set(0, 0, 1);
         scene.add(directionalLight);
 
-        let stream: MediaStream;
-        if (mediaStream) {
-          stream = mediaStream;
-        } else {
-          const acquired = await createWebcamStream({
-            deviceId: selectedDeviceId,
-            width: resolution.width,
-            height: resolution.height,
-            frameRate,
-            facingMode: "user",
-          });
-          if (disposed) { acquired.getTracks().forEach(t => t.stop()); return; }
-          stream = acquired;
-          streamRef.current = acquired; // only track streams we own
-        }
-
         if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+          if (!videoSrc) {
+            let stream: MediaStream;
+            if (mediaStream) {
+              stream = mediaStream;
+            } else {
+              const acquired = await createWebcamStream({
+                deviceId: selectedDeviceId,
+                width: resolution.width,
+                height: resolution.height,
+                frameRate,
+                facingMode: "user",
+              });
+              if (disposed) { acquired.getTracks().forEach(t => t.stop()); return; }
+              stream = acquired;
+              streamRef.current = acquired; // only track streams we own
+            }
+            videoRef.current.srcObject = stream;
+          } else {
+            videoRef.current.srcObject = null;
+            await new Promise<void>((resolve, reject) => {
+              const v = videoRef.current!;
+              if (v.readyState >= 2) { resolve(); return; }
+              v.onloadeddata = () => resolve();
+              v.onerror = () => reject(new Error('Failed to load video file'));
+            });
+            if (disposed) return;
+          }
           await videoRef.current.play();
+          if (disposed) return;
+          onVideoElementRef.current?.(videoRef.current);
 
           const videoTexture = createVideoTexture(videoRef.current);
 
@@ -187,11 +207,12 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
             renderer.render(scene, camera);
           };
           animate();
-          onReady?.();
+          onReadyRef.current?.();
         }
       } catch (error) {
+        if (disposed) return;
         const err = error instanceof Error ? error : new Error(String(error));
-        onError?.(err);
+        onErrorRef.current?.(err);
         console.error('AnimatedVideoCube init failed:', err);
       }
     };
@@ -209,11 +230,12 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
 
     return () => {
       disposed = true;
+      onVideoElementRef.current?.(null);
       if (animationIdRef.current) cancelAnimationFrame(animationIdRef.current);
       window.removeEventListener('resize', handleResize);
       cleanupThreeScene(rendererRef.current, mountElement, streamRef.current);
     };
-  }, [cubeSize, selectedDeviceId, mediaStream, resolution.width, resolution.height, frameRate, getSize, onReady, onError]);
+  }, [cubeSize, selectedDeviceId, mediaStream, videoSrc, resolution.width, resolution.height, frameRate, getSize]);
 
   useEffect(() => {
     if (rotationTrigger > 0) triggerSurpriseRotation();
@@ -232,7 +254,8 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
       <div ref={mountRef} />
       <video
         ref={videoRef}
-        autoPlay
+        src={videoSrc || undefined}
+        loop={!!videoSrc}
         muted
         playsInline
         style={{ display: 'none' }}
