@@ -30,6 +30,7 @@ export default function VideoGrid({
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const initializedRef = React.useRef(false);
   const speedRef = React.useRef(0); // Ref to access current speed in animation loop
+  const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const onReadyRef = React.useRef(onReady);
   const onErrorRef = React.useRef(onError);
   const onVideoElementRef = React.useRef(onVideoElement);
@@ -176,11 +177,10 @@ export default function VideoGrid({
     e.preventDefault();
   }, [isHovering]);
 
-  // Add mouse event listeners
+  // Add mouse event listeners — waits for isReady (set after init completes)
   React.useEffect(() => {
-    if (!threeRef.current) return;
-    
-    const canvas = threeRef.current.renderer.domElement;
+    const canvas = canvasRef.current;
+    if (!canvas || !isReady) return;
     
     canvas.addEventListener('mousedown', handleMouseDown);
     canvas.addEventListener('mousemove', handleMouseMove);
@@ -197,7 +197,7 @@ export default function VideoGrid({
       canvas.removeEventListener('mouseleave', handleMouseLeave);
       canvas.removeEventListener('wheel', handleWheel);
     };
-  }, [handleMouseDown, handleMouseMove, handleMouseUp, handleMouseEnter, handleMouseLeave, handleWheel]);
+  }, [isReady, handleMouseDown, handleMouseMove, handleMouseUp, handleMouseEnter, handleMouseLeave, handleWheel]);
 
   // Reset function to restore default values
   const handleReset = () => {
@@ -246,6 +246,7 @@ export default function VideoGrid({
       
       // Store THREE.js objects for later updates (video texture will be added by separate effect)
       threeRef.current = { renderer, scene, camera, planes, videoTexture: null };
+      canvasRef.current = renderer.domElement;
       
       // Mark as ready after a short delay to prevent re-render conflicts
       setTimeout(() => setIsReady(true), 100);
@@ -264,7 +265,20 @@ export default function VideoGrid({
 
     init();
     const mountEl = mountRef.current;
+
+    // Resize renderer when window resizes (VideoGrid uses container dimensions, not prop width/height)
+    const handleResize = () => {
+      if (!threeRef.current || !mountEl) return;
+      const w = mountEl.clientWidth;
+      const h = mountEl.clientHeight;
+      threeRef.current.renderer.setSize(w, h);
+      threeRef.current.camera.aspect = w / h;
+      threeRef.current.camera.updateProjectionMatrix();
+    };
+    window.addEventListener('resize', handleResize);
+
     return () => {
+      window.removeEventListener('resize', handleResize);
       if (animationId) cancelAnimationFrame(animationId);
       cleanupThreeScene(renderer, mountEl);
       initializedRef.current = false;
@@ -323,7 +337,6 @@ export default function VideoGrid({
             threeRef.current.videoTexture = videoTexture;
             setVideoTextureReady(true);
           }
-          onReadyRef.current?.();
         }
       } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
@@ -396,6 +409,10 @@ export default function VideoGrid({
         planes.push(plane);
         scene.add(plane);
       }
+    }
+    // Signal ready only after grid is actually built
+    if (videoTextureReady) {
+      onReadyRef.current?.();
     }
   }, [gridSize, tileSpacing, tileSize, tiltX, tiltY, videoTextureReady]);
 
