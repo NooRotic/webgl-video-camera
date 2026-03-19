@@ -2,8 +2,11 @@
 
 Three.js WebGL video texture components for React — webcam cubes, spheres, shader effects, VHS retro filters, video grids, and tile animations.
 
-<!-- Screenshots will be added here -->
-<!-- ![Demo](docs/screenshots/demo-overview.png) -->
+<p align="center">
+  <img src="assets/screenshots/webgl_ss_cube.png" alt="Webcam Cube" width="270" />
+  <img src="assets/screenshots/webgl_ss_sphere.png" alt="Webcam Sphere" width="270" />
+  <img src="assets/screenshots/webgl_ss_square.png" alt="Animated Video Cube" width="270" />
+</p>
 
 ## Install
 
@@ -162,3 +165,9 @@ npm run build        # Build ESM + CJS + TypeScript declarations
 ## License
 
 MIT
+
+---
+
+<p align="center">
+  Built by <a href="https://github.com/NooRotic"><b>RipTheAI</b></a> · <a href="https://twitch.tv/riptheai">Twitch</a> · <a href="https://github.com/NooRotic/webgl-video-camera">GitHub</a>
+</p>
