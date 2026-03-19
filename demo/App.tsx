@@ -47,6 +47,7 @@ export default function App() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [hasCamera, setHasCamera] = useState<boolean | null>(null); // null = loading
   const [cameraReady, setCameraReady] = useState(false); // true = safe to mount components
+  const [activeStream, setActiveStream] = useState<MediaStream | null>(null); // shared stream
 
   // Controls
   const [scale, setScale] = useState(1);
@@ -69,6 +70,37 @@ export default function App() {
   const videoInputRef = useRef<HTMLInputElement>(null);
   const alphaInputRef = useRef<HTMLInputElement>(null);
 
+  // Acquire a camera stream for a given device (or any device if empty)
+  const acquireStream = useCallback(async (deviceId?: string): Promise<MediaStream> => {
+    const constraints: MediaStreamConstraints = {
+      video: deviceId ? { deviceId: { exact: deviceId } } : true,
+    };
+    console.log(`[camera] Acquiring stream: ${deviceId ? deviceId.slice(0, 8) : 'any'}...`);
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    const track = stream.getVideoTracks()[0];
+    console.log(`[camera] Acquired: ${track.label} (${track.getSettings().deviceId?.slice(0, 8)})`);
+    return stream;
+  }, []);
+
+  // Try each camera in sequence until one works
+  const acquireAnyStream = useCallback(async (deviceList: MediaDeviceInfo[]): Promise<MediaStream | null> => {
+    // Try each specific device
+    for (const device of deviceList) {
+      try {
+        return await acquireStream(device.deviceId);
+      } catch (err) {
+        console.warn(`[camera] Device "${device.label}" failed:`, err instanceof Error ? err.message : err);
+      }
+    }
+    // Last resort: let browser pick
+    try {
+      return await acquireStream();
+    } catch (err) {
+      console.error('[camera] All devices failed:', err instanceof Error ? err.message : err);
+      return null;
+    }
+  }, [acquireStream]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -76,57 +108,63 @@ export default function App() {
       try {
         console.log('[camera-init] Starting...');
 
-        // Step 1: Try enumerateDevices first — if permissions are pre-approved
-        // (Chrome site settings), this returns full IDs + labels without getUserMedia.
+        // Step 1: Enumerate devices
         setStatus('Detecting cameras...');
         const preliminary = await navigator.mediaDevices.enumerateDevices();
         const preliminaryCams = preliminary.filter((d) => d.kind === 'videoinput');
-        console.log('[camera-init] Preliminary enumerate:', preliminaryCams.map(
+        console.log('[camera-init] Found devices:', preliminaryCams.map(
           (d) => ({ id: d.deviceId.slice(0, 8), label: d.label })
         ));
 
         if (cancelled) return;
 
         const hasLabels = preliminaryCams.some((d) => d.label.length > 0);
-        let videoInputs: MediaDeviceInfo[];
+        let videoInputs = preliminaryCams;
 
-        if (hasLabels && preliminaryCams.length > 0) {
-          // Permissions already granted — we have real IDs and labels, no need for getUserMedia
-          console.log('[camera-init] Permissions pre-approved, skipping getUserMedia');
-          videoInputs = preliminaryCams;
-        } else if (preliminaryCams.length > 0) {
-          // Devices exist but no labels — need getUserMedia for permission grant
-          console.log('[camera-init] Devices found but no labels, requesting getUserMedia...');
+        // If no labels, need getUserMedia for permission first
+        if (!hasLabels && preliminaryCams.length > 0) {
+          console.log('[camera-init] No labels, requesting permission...');
           setStatus('Requesting camera access...');
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          stream.getTracks().forEach((t) => t.stop());
+          const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          tempStream.getTracks().forEach((t) => t.stop());
           await new Promise((r) => setTimeout(r, 500));
           if (cancelled) return;
 
           const all = await navigator.mediaDevices.enumerateDevices();
           videoInputs = all.filter((d) => d.kind === 'videoinput');
-          console.log('[camera-init] Post-permission enumerate:', videoInputs.map(
-            (d) => ({ id: d.deviceId.slice(0, 8), label: d.label })
-          ));
-        } else {
-          // No video devices at all
-          videoInputs = [];
         }
 
         if (cancelled) return;
-
         setDevices(videoInputs);
         setHasCamera(videoInputs.length > 0);
 
-        if (videoInputs.length > 0) {
-          setSelectedDevice(videoInputs[0].deviceId);
-          setStatus(`Found ${videoInputs.length} camera(s)`);
-          setCameraError(null);
-          console.log('[camera-init] Ready with', videoInputs.length, 'camera(s)');
-        } else {
+        if (videoInputs.length === 0) {
           setStatus('No cameras found');
           setCameraError('No camera detected. Connect a webcam to use live video components.');
-          console.log('[camera-init] No cameras found');
+          setCameraReady(true);
+          return;
+        }
+
+        // Step 2: Acquire a working stream — try each camera until one succeeds
+        setStatus('Connecting to camera...');
+        const stream = await acquireAnyStream(videoInputs);
+
+        if (cancelled) {
+          stream?.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        if (stream) {
+          const track = stream.getVideoTracks()[0];
+          const activeDeviceId = track.getSettings().deviceId || videoInputs[0].deviceId;
+          setActiveStream(stream);
+          setSelectedDevice(activeDeviceId);
+          setStatus(`Connected: ${track.label}`);
+          setCameraError(null);
+          console.log('[camera-init] Stream active:', track.label);
+        } else {
+          setStatus('All cameras failed to connect');
+          setCameraError('Could not connect to any camera. Close other apps using the camera and retry.');
         }
 
         setCameraReady(true);
@@ -151,8 +189,11 @@ export default function App() {
     }
 
     initCamera();
-    return () => { cancelled = true; };
-  }, []);
+    return () => {
+      cancelled = true;
+      // Don't stop stream here — it may still be in use by a component
+    };
+  }, [acquireAnyStream]);
 
   // Reset state on tab change
   useEffect(() => {
@@ -165,6 +206,41 @@ export default function App() {
       setSourceMode('webcam');
     }
   }, [activeTab]);
+
+  // Switch camera stream when user selects a different device
+  const isInitialDevice = useRef(true);
+  useEffect(() => {
+    // Skip the initial render (init flow handles that)
+    if (isInitialDevice.current) {
+      isInitialDevice.current = false;
+      return;
+    }
+    if (!selectedDevice || !cameraReady) return;
+
+    let cancelled = false;
+    async function switchDevice() {
+      try {
+        setStatus('Switching camera...');
+        const newStream = await acquireStream(selectedDevice);
+        if (cancelled) { newStream.getTracks().forEach((t) => t.stop()); return; }
+
+        // Stop the old stream
+        activeStream?.getTracks().forEach((t) => t.stop());
+        setActiveStream(newStream);
+        const track = newStream.getVideoTracks()[0];
+        setStatus(`Connected: ${track.label}`);
+        setCameraError(null);
+      } catch (err) {
+        if (cancelled) return;
+        const error = err instanceof Error ? err : new Error(String(err));
+        console.error('[camera] Switch failed:', error.message);
+        setCameraError(`Failed to switch camera: ${error.message}`);
+        setStatus(`Camera error: ${error.message}`);
+      }
+    }
+    switchDevice();
+    return () => { cancelled = true; };
+  }, [selectedDevice]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cleanup blob URLs on unmount or change
   useEffect(() => {
@@ -283,6 +359,7 @@ export default function App() {
     width: baseWidth,
     height: baseHeight,
     selectedDeviceId: selectedDevice,
+    mediaStream: activeStream || undefined,
     onReady: handleReady,
     onError: handleError,
   };
@@ -581,25 +658,25 @@ export default function App() {
             transition: isDragging ? 'none' : 'transform 0.1s ease-out',
           }}
         >
-          {/* Webcam-only components: wait for camera init to complete and release device */}
-          {cameraReady && !cameraError && activeTab === 'cube' && <WebcamCube {...commonProps} />}
-          {cameraReady && !cameraError && activeTab === 'sphere' && <WebcamSphere {...commonProps} />}
-          {cameraReady && !cameraError && activeTab === 'animated' && <AnimatedVideoCube {...commonProps} showDebugInfo />}
-          {/* Shader/Alpha: file mode doesn't need camera, but still wait for init to finish */}
-          {cameraReady && (activeTab === 'shader') && (!needsWebcam || !cameraError) && (
+          {/* Webcam components: only mount when we have an active stream */}
+          {activeStream && activeTab === 'cube' && <WebcamCube {...commonProps} />}
+          {activeStream && activeTab === 'sphere' && <WebcamSphere {...commonProps} />}
+          {activeStream && activeTab === 'animated' && <AnimatedVideoCube {...commonProps} showDebugInfo />}
+          {/* Shader/Alpha: file mode doesn't need camera stream */}
+          {(activeStream || !needsWebcam) && activeTab === 'shader' && (
             <VideoShaderFX
               {...commonProps}
               videoSrc={effectiveVideoSrc}
             />
           )}
-          {cameraReady && (activeTab === 'alpha') && (!needsWebcam || !cameraError) && (
+          {(activeStream || !needsWebcam) && activeTab === 'alpha' && (
             <VideoAlphaMask
               {...commonProps}
               videoSrc={effectiveVideoSrc}
               alphaSrc={effectiveAlphaSrc}
             />
           )}
-          {cameraReady && !cameraError && activeTab === 'grid' && (
+          {activeStream && activeTab === 'grid' && (
             <VideoGrid
               {...commonProps}
               width={baseWidth}

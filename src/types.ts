@@ -11,6 +11,8 @@ export interface BaseWebGLVideoProps {
   style?: React.CSSProperties;
   /** MediaDeviceInfo.deviceId for selecting a specific webcam */
   selectedDeviceId?: string;
+  /** Pre-acquired MediaStream — if provided, component skips getUserMedia entirely */
+  mediaStream?: MediaStream;
   /** URL or path to a video file (for file-based video components) */
   videoSrc?: string;
   /** Called when the WebGL scene is initialized and ready */

@@ -9,6 +9,7 @@ const WebcamSphere: React.FC<WebcamSphereProps> = ({
   className,
   style,
   selectedDeviceId,
+  mediaStream,
   rotationSpeed = 0.01,
   segments = 32,
   onReady,
@@ -24,7 +25,7 @@ const WebcamSphere: React.FC<WebcamSphereProps> = ({
   useEffect(() => {
     let renderer: THREE.WebGLRenderer | null = null;
     let animationId: number = 0;
-    let stream: MediaStream | null = null;
+    let ownStream: MediaStream | null = null;
     let disposed = false;
     const mountEl = mountRef.current;
 
@@ -32,12 +33,18 @@ const WebcamSphere: React.FC<WebcamSphereProps> = ({
       if (!mountEl) return;
 
       try {
-        stream = await createWebcamStream({
-          deviceId: selectedDeviceId,
-          width: 1920,
-          height: 1080,
-        });
-        if (disposed) { stream.getTracks().forEach(t => t.stop()); return; }
+        let stream: MediaStream;
+        if (mediaStream) {
+          stream = mediaStream;
+        } else {
+          ownStream = await createWebcamStream({
+            deviceId: selectedDeviceId,
+            width: 1920,
+            height: 1080,
+          });
+          if (disposed) { ownStream.getTracks().forEach(t => t.stop()); return; }
+          stream = ownStream;
+        }
 
         renderer = createRenderer(mountEl, width, height);
 
@@ -78,9 +85,9 @@ const WebcamSphere: React.FC<WebcamSphereProps> = ({
 
     return () => {
       disposed = true;
-      cleanupThreeScene(renderer, mountEl, stream, animationId);
+      cleanupThreeScene(renderer, mountEl, ownStream, animationId);
     };
-  }, [width, height, selectedDeviceId, rotationSpeed, segments]);
+  }, [width, height, selectedDeviceId, mediaStream, rotationSpeed, segments]);
 
   return (
     <div className={className} style={style}>

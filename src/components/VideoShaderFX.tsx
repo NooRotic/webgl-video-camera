@@ -26,6 +26,7 @@ const VideoShaderFX: React.FC<VideoShaderFXProps> = ({
   style,
   videoSrc,
   selectedDeviceId,
+  mediaStream,
   vertexShader = DEFAULT_VERTEX_SHADER,
   fragmentShader = DEFAULT_FRAGMENT_SHADER,
   onReady,
@@ -50,9 +51,13 @@ const VideoShaderFX: React.FC<VideoShaderFXProps> = ({
 
       try {
         if (!videoSrc) {
-          stream = await createWebcamStream({ deviceId: selectedDeviceId });
-          if (disposed) { stream.getTracks().forEach(t => t.stop()); return; }
-          videoRef.current.srcObject = stream;
+          if (mediaStream) {
+            videoRef.current.srcObject = mediaStream;
+          } else {
+            stream = await createWebcamStream({ deviceId: selectedDeviceId });
+            if (disposed) { stream.getTracks().forEach(t => t.stop()); return; }
+            videoRef.current.srcObject = stream;
+          }
           await videoRef.current.play();
           if (disposed) return;
         }
@@ -97,7 +102,7 @@ const VideoShaderFX: React.FC<VideoShaderFXProps> = ({
       disposed = true;
       cleanupThreeScene(renderer, mountEl, stream, animationId);
     };
-  }, [width, height, videoSrc, selectedDeviceId, vertexShader, fragmentShader]);
+  }, [width, height, videoSrc, selectedDeviceId, mediaStream, vertexShader, fragmentShader]);
 
   return (
     <div className={className} style={style}>

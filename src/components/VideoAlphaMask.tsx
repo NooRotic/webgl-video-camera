@@ -11,6 +11,7 @@ const VideoAlphaMask: React.FC<VideoAlphaMaskProps> = ({
   videoSrc,
   alphaSrc,
   selectedDeviceId,
+  mediaStream,
   onReady,
   onError,
 }) => {
@@ -34,9 +35,13 @@ const VideoAlphaMask: React.FC<VideoAlphaMaskProps> = ({
 
       try {
         if (!videoSrc) {
-          stream = await createWebcamStream({ deviceId: selectedDeviceId });
-          if (disposed) { stream.getTracks().forEach(t => t.stop()); return; }
-          videoRef.current.srcObject = stream;
+          if (mediaStream) {
+            videoRef.current.srcObject = mediaStream;
+          } else {
+            stream = await createWebcamStream({ deviceId: selectedDeviceId });
+            if (disposed) { stream.getTracks().forEach(t => t.stop()); return; }
+            videoRef.current.srcObject = stream;
+          }
           await videoRef.current.play();
           if (disposed) return;
         }
@@ -87,7 +92,7 @@ const VideoAlphaMask: React.FC<VideoAlphaMaskProps> = ({
       disposed = true;
       cleanupThreeScene(renderer, mountEl, stream, animationId);
     };
-  }, [width, height, videoSrc, alphaSrc, selectedDeviceId]);
+  }, [width, height, videoSrc, alphaSrc, selectedDeviceId, mediaStream]);
 
   return (
     <div className={className} style={style}>
