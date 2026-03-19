@@ -42,9 +42,18 @@ const VideoAlphaMask: React.FC<VideoAlphaMaskProps> = ({
             if (disposed) { stream.getTracks().forEach(t => t.stop()); return; }
             videoRef.current.srcObject = stream;
           }
-          await videoRef.current.play();
+        } else {
+          // Wait for file video to load before creating texture
+          await new Promise<void>((resolve, reject) => {
+            const v = videoRef.current!;
+            if (v.readyState >= 2) { resolve(); return; }
+            v.onloadeddata = () => resolve();
+            v.onerror = () => reject(new Error('Failed to load video file'));
+          });
           if (disposed) return;
         }
+        await videoRef.current.play();
+        if (disposed) return;
 
         renderer = createRenderer(mountEl, width, height);
 

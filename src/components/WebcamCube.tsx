@@ -21,10 +21,14 @@ const WebcamCube: React.FC<WebcamCubeProps> = ({
   onReadyRef.current = onReady;
   onErrorRef.current = onError;
 
+  // Store rotationSpeed in ref so animation loop reads latest value without re-init
+  const rotationSpeedRef = useRef(rotationSpeed);
+  rotationSpeedRef.current = rotationSpeed;
+
   useEffect(() => {
     let renderer: THREE.WebGLRenderer | null = null;
     let animationId: number = 0;
-    let ownStream: MediaStream | null = null; // only set if WE acquired it
+    let ownStream: MediaStream | null = null;
     let disposed = false;
     const mountEl = mountRef.current;
 
@@ -34,10 +38,8 @@ const WebcamCube: React.FC<WebcamCubeProps> = ({
       try {
         let stream: MediaStream;
         if (mediaStream) {
-          // Use pre-acquired stream — don't call getUserMedia
           stream = mediaStream;
         } else {
-          // Acquire our own stream
           ownStream = await createWebcamStream({ deviceId: selectedDeviceId });
           if (disposed) { ownStream.getTracks().forEach(t => t.stop()); return; }
           stream = ownStream;
@@ -64,8 +66,8 @@ const WebcamCube: React.FC<WebcamCubeProps> = ({
           const animate = () => {
             if (disposed) return;
             animationId = requestAnimationFrame(animate);
-            cube.rotation.x += rotationSpeed.x;
-            cube.rotation.y += rotationSpeed.y;
+            cube.rotation.x += rotationSpeedRef.current.x;
+            cube.rotation.y += rotationSpeedRef.current.y;
             renderer!.render(scene, camera);
           };
           animate();
@@ -83,10 +85,9 @@ const WebcamCube: React.FC<WebcamCubeProps> = ({
 
     return () => {
       disposed = true;
-      // Only stop stream if we acquired it — don't kill a shared stream
       cleanupThreeScene(renderer, mountEl, ownStream, animationId);
     };
-  }, [width, height, selectedDeviceId, mediaStream, rotationSpeed.x, rotationSpeed.y]);
+  }, [width, height, selectedDeviceId, mediaStream]);
 
   return (
     <div className={className} style={style}>

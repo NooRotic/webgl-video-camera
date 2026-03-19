@@ -22,6 +22,10 @@ const WebcamSphere: React.FC<WebcamSphereProps> = ({
   onReadyRef.current = onReady;
   onErrorRef.current = onError;
 
+  // Store rotationSpeed in ref so animation loop reads latest value without re-init
+  const rotationSpeedRef = useRef(rotationSpeed);
+  rotationSpeedRef.current = rotationSpeed;
+
   useEffect(() => {
     let renderer: THREE.WebGLRenderer | null = null;
     let animationId: number = 0;
@@ -67,7 +71,7 @@ const WebcamSphere: React.FC<WebcamSphereProps> = ({
           const animate = () => {
             if (disposed) return;
             animationId = requestAnimationFrame(animate);
-            sphere.rotation.y += rotationSpeed;
+            sphere.rotation.y += rotationSpeedRef.current;
             renderer!.render(scene, camera);
           };
           animate();
@@ -87,7 +91,7 @@ const WebcamSphere: React.FC<WebcamSphereProps> = ({
       disposed = true;
       cleanupThreeScene(renderer, mountEl, ownStream, animationId);
     };
-  }, [width, height, selectedDeviceId, mediaStream, rotationSpeed, segments]);
+  }, [width, height, selectedDeviceId, mediaStream, segments]);
 
   return (
     <div className={className} style={style}>
