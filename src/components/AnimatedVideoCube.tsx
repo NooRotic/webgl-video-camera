@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useCallback } from "react";
 import * as THREE from "three";
 import { AnimatedVideoCubeProps } from "../types";
-import { createVideoTexture, createWebcamStream, cleanupThreeScene } from "../core/videoTextureUtils";
+import { createVideoTexture, createWebcamStream, createRenderer, cleanupThreeScene, waitForVideoReady } from "../core/videoTextureUtils";
 
 const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
   width,
@@ -115,11 +115,7 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
       try {
         const { w, h } = getSize();
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setSize(w, h);
-        renderer.setClearColor(0x000000, 0);
-        mountElement.appendChild(renderer.domElement);
+        const renderer = createRenderer(mountElement, w, h, { clearColor: 0x000000, clearAlpha: 0 });
         rendererRef.current = renderer;
 
         const scene = new THREE.Scene();
@@ -156,12 +152,7 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
             videoRef.current.srcObject = stream;
           } else {
             videoRef.current.srcObject = null;
-            await new Promise<void>((resolve, reject) => {
-              const v = videoRef.current!;
-              if (v.readyState >= 2) { resolve(); return; }
-              v.onloadeddata = () => resolve();
-              v.onerror = () => reject(new Error('Failed to load video file'));
-            });
+            await waitForVideoReady(videoRef.current);
             if (disposed) return;
           }
           await videoRef.current.play();

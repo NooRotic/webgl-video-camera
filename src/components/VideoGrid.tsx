@@ -2,6 +2,7 @@ import React from "react";
 import * as THREE from "three";
 import VideoGridControls from "./VideoGridControls";
 import { VideoGridProps } from "../types";
+import { createVideoTexture, createWebcamStream, createRenderer, cleanupThreeScene, waitForVideoReady } from "../core/videoTextureUtils";
 
 export default function VideoGrid({
   gridSize: propGridSize = 3,
@@ -147,22 +148,11 @@ export default function VideoGrid({
     }
   }, [isDragging, dragStart, gridSize, tileSpacing, offsetX, offsetY]);
 
-  const handleMouseUp = React.useCallback((e: MouseEvent) => {
+  const handleMouseUp = React.useCallback(() => {
     if (isDragging) {
-      const deltaX = (e.clientX - dragStart.x) * 0.005;
-      const deltaY = -(e.clientY - dragStart.y) * 0.005;
-      
-      // Update the actual offset values
-      if (typeof offsetX === 'number' && typeof offsetY === 'number') {
-        // We need to notify parent component of the new offset values
-        // For now, we'll update the local positions
-        const newOffsetX = offsetX + deltaX;
-        const newOffsetY = offsetY + deltaY;
-      }
-      
       setIsDragging(false);
     }
-  }, [isDragging, dragStart, offsetX, offsetY]);
+  }, [isDragging]);
 
   const handleMouseEnter = React.useCallback(() => {
     setIsHovering(true);
@@ -245,10 +235,7 @@ export default function VideoGrid({
       const containerWidth = container.clientWidth;
       const containerHeight = container.clientHeight;
       
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setClearColor(0x000000, 0); // fully transparent
-  renderer.setSize(containerWidth, containerHeight);
-      mountRef.current.appendChild(renderer.domElement);
+      renderer = createRenderer(mountRef.current, containerWidth, containerHeight, { clearColor: 0x000000, clearAlpha: 0 });
       scene = new THREE.Scene();
       // Initialize camera with default position (will be updated by separate effect)
       const fov = 70;
@@ -265,9 +252,8 @@ export default function VideoGrid({
       
       const animate = () => {
         animationId = requestAnimationFrame(animate);
-        const currentPlanes = threeRef.current?.planes || [];
         if (speedRef.current > 0) {
-          currentPlanes.forEach((plane) => {
+          planes.forEach((plane) => {
             plane.rotation.y += speedRef.current;
           });
         }
@@ -280,10 +266,7 @@ export default function VideoGrid({
     const mountEl = mountRef.current;
     return () => {
       if (animationId) cancelAnimationFrame(animationId);
-      if (renderer) {
-        renderer.dispose();
-        if (mountEl) mountEl.innerHTML = "";
-      }
+      cleanupThreeScene(renderer, mountEl);
       initializedRef.current = false;
     };
   }, [selectedDeviceId]); // Only re-initialize when device changes
@@ -306,18 +289,7 @@ export default function VideoGrid({
             if (mediaStream) {
               stream = mediaStream;
             } else {
-              // Configure video constraints with device selection
-              const videoConstraints: MediaTrackConstraints = {
-                width: { ideal: 1920 },
-                height: { ideal: 1080 }
-              };
-
-              // Add device ID if specified
-              if (selectedDeviceId) {
-                videoConstraints.deviceId = { exact: selectedDeviceId };
-              }
-
-              ownStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+              ownStream = await createWebcamStream({ deviceId: selectedDeviceId, width: 1920, height: 1080 });
               if (disposed) { ownStream.getTracks().forEach(t => t.stop()); return; }
               stream = ownStream;
             }
@@ -325,12 +297,7 @@ export default function VideoGrid({
           } else {
             // File path: clear srcObject, wait for loadeddata
             videoRef.current.srcObject = null;
-            await new Promise<void>((resolve, reject) => {
-              const v = videoRef.current!;
-              if (v.readyState >= 2) { resolve(); return; }
-              v.onloadeddata = () => resolve();
-              v.onerror = () => reject(new Error('Failed to load video file'));
-            });
+            await waitForVideoReady(videoRef.current);
             if (disposed) return;
           }
 
@@ -346,36 +313,15 @@ export default function VideoGrid({
           if (disposed) return;
           onVideoElementRef.current?.(videoRef.current);
 
-          // Ensure video element is valid before creating texture
-          if (videoRef.current && videoRef.current.videoWidth > 0) {
-            const videoTexture = new THREE.VideoTexture(videoRef.current);
-            videoTexture.minFilter = THREE.LinearFilter;
-            videoTexture.magFilter = THREE.LinearFilter;
-            videoTexture.colorSpace = THREE.SRGBColorSpace;
-
-            if (threeRef.current) {
-              threeRef.current.videoTexture = videoTexture;
-              setVideoTextureReady(true);
-            }
-          } else {
-            // Create a fallback texture if video is not ready
-            await new Promise((resolve) => {
-              if (videoRef.current) {
-                videoRef.current.addEventListener('loadeddata', () => {
-                  if (videoRef.current && threeRef.current) {
-                    const videoTexture = new THREE.VideoTexture(videoRef.current);
-                    videoTexture.minFilter = THREE.LinearFilter;
-                    videoTexture.magFilter = THREE.LinearFilter;
-                    videoTexture.format = THREE.RGBAFormat;
-                    threeRef.current.videoTexture = videoTexture;
-                    setVideoTextureReady(true);
-                  }
-                  resolve(undefined);
-                }, { once: true });
-              } else {
-                resolve(undefined);
-              }
-            });
+          // Ensure video is ready, then create texture
+          if (videoRef.current && videoRef.current.videoWidth === 0) {
+            await waitForVideoReady(videoRef.current);
+            if (disposed) return;
+          }
+          if (videoRef.current && threeRef.current) {
+            const videoTexture = createVideoTexture(videoRef.current);
+            threeRef.current.videoTexture = videoTexture;
+            setVideoTextureReady(true);
           }
           onReadyRef.current?.();
         }

@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from "react";
 import * as THREE from "three";
 import { WebcamSphereProps } from "../types";
-import { createVideoTexture, createWebcamStream, createRenderer, cleanupThreeScene } from "../core/videoTextureUtils";
+import { createVideoTexture, createWebcamStream, createRenderer, cleanupThreeScene, waitForVideoReady } from "../core/videoTextureUtils";
 
 const WebcamSphere: React.FC<WebcamSphereProps> = ({
   width = 400,
@@ -54,12 +54,7 @@ const WebcamSphere: React.FC<WebcamSphereProps> = ({
           }
         } else {
           videoRef.current.srcObject = null;
-          await new Promise<void>((resolve, reject) => {
-            const v = videoRef.current!;
-            if (v.readyState >= 2) { resolve(); return; }
-            v.onloadeddata = () => resolve();
-            v.onerror = () => reject(new Error('Failed to load video file'));
-          });
+          await waitForVideoReady(videoRef.current);
           if (disposed) return;
         }
         await videoRef.current.play();

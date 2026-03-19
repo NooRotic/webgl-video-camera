@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from "react";
 import * as THREE from "three";
 import { VideoAlphaMaskProps } from "../types";
-import { createVideoTexture, createWebcamStream, createRenderer, cleanupThreeScene } from "../core/videoTextureUtils";
+import { createVideoTexture, createWebcamStream, createRenderer, cleanupThreeScene, waitForVideoReady } from "../core/videoTextureUtils";
 
 const VideoAlphaMask: React.FC<VideoAlphaMaskProps> = ({
   width = 400,
@@ -48,13 +48,7 @@ const VideoAlphaMask: React.FC<VideoAlphaMaskProps> = ({
         } else {
           // Clear any leftover srcObject (webcam) — src attribute won't load while srcObject is set
           videoRef.current.srcObject = null;
-          // Wait for file video to load before creating texture
-          await new Promise<void>((resolve, reject) => {
-            const v = videoRef.current!;
-            if (v.readyState >= 2) { resolve(); return; }
-            v.onloadeddata = () => resolve();
-            v.onerror = () => reject(new Error('Failed to load video file'));
-          });
+          await waitForVideoReady(videoRef.current);
           if (disposed) return;
         }
         await videoRef.current.play();
@@ -116,7 +110,6 @@ const VideoAlphaMask: React.FC<VideoAlphaMaskProps> = ({
       <video
         ref={videoRef}
         src={videoSrc || undefined}
-        autoPlay
         loop={!!videoSrc}
         muted
         playsInline
