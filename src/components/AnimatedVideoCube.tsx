@@ -12,6 +12,7 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
   isAnimating = true,
   cubeSize = 2,
   selectedDeviceId,
+  mediaStream,
   resolution = { width: 1920, height: 1080 },
   frameRate = 60,
   rotationTrigger = 0,
@@ -127,15 +128,21 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
         directionalLight.position.set(0, 0, 1);
         scene.add(directionalLight);
 
-        const stream = await createWebcamStream({
-          deviceId: selectedDeviceId,
-          width: resolution.width,
-          height: resolution.height,
-          frameRate,
-          facingMode: "user",
-        });
-        if (disposed) { stream.getTracks().forEach(t => t.stop()); return; }
-        streamRef.current = stream;
+        let stream: MediaStream;
+        if (mediaStream) {
+          stream = mediaStream;
+        } else {
+          const acquired = await createWebcamStream({
+            deviceId: selectedDeviceId,
+            width: resolution.width,
+            height: resolution.height,
+            frameRate,
+            facingMode: "user",
+          });
+          if (disposed) { acquired.getTracks().forEach(t => t.stop()); return; }
+          stream = acquired;
+          streamRef.current = acquired; // only track streams we own
+        }
 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -206,7 +213,7 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
       window.removeEventListener('resize', handleResize);
       cleanupThreeScene(rendererRef.current, mountElement, streamRef.current);
     };
-  }, [cubeSize, selectedDeviceId, resolution.width, resolution.height, frameRate, getSize, onReady, onError]);
+  }, [cubeSize, selectedDeviceId, mediaStream, resolution.width, resolution.height, frameRate, getSize, onReady, onError]);
 
   useEffect(() => {
     if (rotationTrigger > 0) triggerSurpriseRotation();

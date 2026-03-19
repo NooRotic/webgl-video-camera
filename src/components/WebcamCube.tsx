@@ -9,6 +9,7 @@ const WebcamCube: React.FC<WebcamCubeProps> = ({
   className,
   style,
   selectedDeviceId,
+  mediaStream,
   rotationSpeed = { x: 0.01, y: 0.01 },
   onReady,
   onError,
@@ -23,7 +24,7 @@ const WebcamCube: React.FC<WebcamCubeProps> = ({
   useEffect(() => {
     let renderer: THREE.WebGLRenderer | null = null;
     let animationId: number = 0;
-    let stream: MediaStream | null = null;
+    let ownStream: MediaStream | null = null; // only set if WE acquired it
     let disposed = false;
     const mountEl = mountRef.current;
 
@@ -31,8 +32,16 @@ const WebcamCube: React.FC<WebcamCubeProps> = ({
       if (!mountEl) return;
 
       try {
-        stream = await createWebcamStream({ deviceId: selectedDeviceId });
-        if (disposed) { stream.getTracks().forEach(t => t.stop()); return; }
+        let stream: MediaStream;
+        if (mediaStream) {
+          // Use pre-acquired stream — don't call getUserMedia
+          stream = mediaStream;
+        } else {
+          // Acquire our own stream
+          ownStream = await createWebcamStream({ deviceId: selectedDeviceId });
+          if (disposed) { ownStream.getTracks().forEach(t => t.stop()); return; }
+          stream = ownStream;
+        }
 
         renderer = createRenderer(mountEl, width, height);
 
@@ -74,9 +83,10 @@ const WebcamCube: React.FC<WebcamCubeProps> = ({
 
     return () => {
       disposed = true;
-      cleanupThreeScene(renderer, mountEl, stream, animationId);
+      // Only stop stream if we acquired it — don't kill a shared stream
+      cleanupThreeScene(renderer, mountEl, ownStream, animationId);
     };
-  }, [width, height, selectedDeviceId, rotationSpeed.x, rotationSpeed.y]);
+  }, [width, height, selectedDeviceId, mediaStream, rotationSpeed.x, rotationSpeed.y]);
 
   return (
     <div className={className} style={style}>

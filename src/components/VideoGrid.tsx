@@ -19,6 +19,7 @@ export default function VideoGrid({
   offsetX = 0,
   offsetY = 0,
   selectedDeviceId = '',
+  mediaStream,
 }: VideoGridProps = {}) {
   const mountRef = React.useRef<HTMLDivElement>(null);
   const videoRef = React.useRef<HTMLVideoElement>(null);
@@ -281,24 +282,30 @@ export default function VideoGrid({
   React.useEffect(() => {
     if (!initializedRef.current) return;
     
-    let stream: MediaStream | null = null;
-    
+    let ownStream: MediaStream | null = null;
+
     const setupVideo = async () => {
       try {
         setVideoTextureReady(false); // Reset state
-        
-        // Configure video constraints with device selection
-        const videoConstraints: MediaTrackConstraints = { 
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        };
-        
-        // Add device ID if specified
-        if (selectedDeviceId) {
-          videoConstraints.deviceId = { exact: selectedDeviceId };
+
+        let stream: MediaStream;
+        if (mediaStream) {
+          stream = mediaStream;
+        } else {
+          // Configure video constraints with device selection
+          const videoConstraints: MediaTrackConstraints = {
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          };
+
+          // Add device ID if specified
+          if (selectedDeviceId) {
+            videoConstraints.deviceId = { exact: selectedDeviceId };
+          }
+
+          ownStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+          stream = ownStream;
         }
-        
-        stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
         
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -353,11 +360,11 @@ export default function VideoGrid({
     setupVideo();
     
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+      if (ownStream) {
+        ownStream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [selectedDeviceId]); // Re-setup video when device changes
+  }, [selectedDeviceId, mediaStream]); // Re-setup video when device changes
   
   // Update camera position when grid size changes
   React.useEffect(() => {
