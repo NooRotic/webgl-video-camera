@@ -1,7 +1,8 @@
 {
   "name": "@riptheai/webgl-video",
   "version": "0.1.0",
-  "description": "Three.js WebGL video texture components for React — webcam cubes, spheres, shader effects, video grids, and tile animations",
+  "description": "Three.js WebGL video texture components for React — webcam cubes, spheres, shader effects, VHS filters, video grids, and tile animations",
+  "author": "RipTheAI",
   "type": "module",
   "main": "dist/index.cjs",
   "module": "dist/index.js",
@@ -20,7 +21,9 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsup",
@@ -62,7 +65,10 @@
     "3d",
     "shader",
     "video-texture",
-    "camera"
+    "camera",
+    "vhs",
+    "glsl",
+    "animation"
   ],
   "license": "MIT",
   "homepage": "https://github.com/NooRotic/webgl-video-camera#readme",
