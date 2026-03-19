@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from "react";
 import * as THREE from "three";
 import { WebcamSphereProps } from "../types";
 import { createVideoTexture, createWebcamStream, createRenderer, cleanupThreeScene, waitForVideoReady } from "../core/videoTextureUtils";
+import { useStableCallbacks } from "../hooks/useStableCallbacks";
 
 const WebcamSphere: React.FC<WebcamSphereProps> = ({
   width = 400,
@@ -19,12 +20,7 @@ const WebcamSphere: React.FC<WebcamSphereProps> = ({
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const onReadyRef = useRef(onReady);
-  const onErrorRef = useRef(onError);
-  const onVideoElementRef = useRef(onVideoElement);
-  onReadyRef.current = onReady;
-  onErrorRef.current = onError;
-  onVideoElementRef.current = onVideoElement;
+  const { onReadyRef, onErrorRef, onVideoElementRef } = useStableCallbacks({ onReady, onError, onVideoElement });
 
   const rotationSpeedRef = useRef(rotationSpeed);
   rotationSpeedRef.current = rotationSpeed;
@@ -44,11 +40,7 @@ const WebcamSphere: React.FC<WebcamSphereProps> = ({
           if (mediaStream) {
             videoRef.current.srcObject = mediaStream;
           } else {
-            ownStream = await createWebcamStream({
-              deviceId: selectedDeviceId,
-              width: 1920,
-              height: 1080,
-            });
+            ownStream = await createWebcamStream({ deviceId: selectedDeviceId });
             if (disposed) { ownStream.getTracks().forEach(t => t.stop()); return; }
             videoRef.current.srcObject = ownStream;
           }

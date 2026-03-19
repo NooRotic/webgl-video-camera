@@ -12,6 +12,13 @@ import {
 type TabName = 'cube' | 'sphere' | 'animated' | 'shader' | 'alpha' | 'grid' | 'vhs';
 type SourceMode = 'webcam' | 'file';
 
+const PlayIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 21,12 5,21" /></svg>
+);
+const PauseIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="5" height="18" rx="1" /><rect x="14" y="3" width="5" height="18" rx="1" /></svg>
+);
+
 const TABS: { id: TabName; label: string; description: string; supportsFile?: boolean }[] = [
   { id: 'cube', label: 'Webcam Cube', description: 'Rotating 3D cube with webcam texture', supportsFile: true },
   { id: 'sphere', label: 'Webcam Sphere', description: 'Rotating sphere with webcam video mapped to surface', supportsFile: true },
@@ -650,16 +657,7 @@ export default function App() {
                 style={{ ...smallBtnStyle(isAnimating), display: 'flex', alignItems: 'center', gap: 6, width: '100%', justifyContent: 'center' }}
                 title={isAnimating ? 'Pause rotation' : 'Resume rotation'}
               >
-                {isAnimating ? (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                    <rect x="5" y="3" width="5" height="18" rx="1" />
-                    <rect x="14" y="3" width="5" height="18" rx="1" />
-                  </svg>
-                ) : (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                    <polygon points="5,3 21,12 5,21" />
-                  </svg>
-                )}
+                {isAnimating ? <PauseIcon /> : <PlayIcon />}
                 {isAnimating ? 'Pause' : 'Play'}
               </button>
               {/* Link axes */}
@@ -799,16 +797,7 @@ export default function App() {
               style={{ ...smallBtnStyle(false), display: 'flex', alignItems: 'center', gap: 4 }}
               title={isVideoPlaying ? 'Pause video' : 'Play video'}
             >
-              {isVideoPlaying ? (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="5" y="3" width="5" height="18" rx="1" />
-                  <rect x="14" y="3" width="5" height="18" rx="1" />
-                </svg>
-              ) : (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                  <polygon points="5,3 21,12 5,21" />
-                </svg>
-              )}
+              {isVideoPlaying ? <PauseIcon /> : <PlayIcon />}
             </button>
 
             {/* Seek bar */}

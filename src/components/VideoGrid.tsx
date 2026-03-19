@@ -3,6 +3,7 @@ import * as THREE from "three";
 import VideoGridControls from "./VideoGridControls";
 import { VideoGridProps } from "../types";
 import { createVideoTexture, createWebcamStream, createRenderer, cleanupThreeScene, waitForVideoReady } from "../core/videoTextureUtils";
+import { useStableCallbacks } from "../hooks/useStableCallbacks";
 
 export default function VideoGrid({
   gridSize: propGridSize = 3,
@@ -31,12 +32,7 @@ export default function VideoGrid({
   const initializedRef = React.useRef(false);
   const speedRef = React.useRef(0); // Ref to access current speed in animation loop
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
-  const onReadyRef = React.useRef(onReady);
-  const onErrorRef = React.useRef(onError);
-  const onVideoElementRef = React.useRef(onVideoElement);
-  onReadyRef.current = onReady;
-  onErrorRef.current = onError;
-  onVideoElementRef.current = onVideoElement;
+  const { onReadyRef, onErrorRef, onVideoElementRef } = useStableCallbacks({ onReady, onError, onVideoElement });
   const threeRef = React.useRef<{
     renderer: THREE.WebGLRenderer;
     scene: THREE.Scene;
@@ -199,14 +195,14 @@ export default function VideoGrid({
     };
   }, [isReady, handleMouseDown, handleMouseMove, handleMouseUp, handleMouseEnter, handleMouseLeave, handleWheel]);
 
-  // Reset function to restore default values
+  // Reset function to restore initial prop values
   const handleReset = () => {
-    setGridSize(3);
-    setTileSpacing(1.2);
-    setTileSize(0.8);
-    setSpeed(0);
-    setTiltX(0);
-    setTiltY(0);
+    setGridSize(propGridSize);
+    setTileSpacing(propTileSpacing);
+    setTileSize(propTileSize);
+    setSpeed(propSpeed);
+    setTiltX(propTiltX);
+    setTiltY(propTiltY);
   };
 
   // Calculate camera position based on grid settings

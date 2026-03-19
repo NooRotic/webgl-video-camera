@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from "react";
 import * as THREE from "three";
 import { VideoShaderFXProps } from "../types";
 import { createVideoTexture, createWebcamStream, createRenderer, cleanupThreeScene, waitForVideoReady } from "../core/videoTextureUtils";
+import { useStableCallbacks } from "../hooks/useStableCallbacks";
 
 const DEFAULT_VERTEX_SHADER = `
 varying vec2 vUv;
@@ -35,12 +36,7 @@ const VideoShaderFX: React.FC<VideoShaderFXProps> = ({
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const onReadyRef = useRef(onReady);
-  const onErrorRef = useRef(onError);
-  const onVideoElementRef = useRef(onVideoElement);
-  onReadyRef.current = onReady;
-  onErrorRef.current = onError;
-  onVideoElementRef.current = onVideoElement;
+  const { onReadyRef, onErrorRef, onVideoElementRef } = useStableCallbacks({ onReady, onError, onVideoElement });
 
   useEffect(() => {
     let renderer: THREE.WebGLRenderer | null = null;

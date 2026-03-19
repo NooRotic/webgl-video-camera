@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useCallback } from "react";
 import * as THREE from "three";
 import { AnimatedVideoCubeProps } from "../types";
 import { createVideoTexture, createWebcamStream, createRenderer, cleanupThreeScene, waitForVideoReady } from "../core/videoTextureUtils";
+import { useStableCallbacks } from "../hooks/useStableCallbacks";
 
 const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
   width,
@@ -43,17 +44,12 @@ const AnimatedVideoCube: React.FC<AnimatedVideoCubeProps> = ({
   const rotationSpeedRef = useRef(rotationSpeed);
   const manualRotationRef = useRef(manualRotation);
   const showDebugInfoRef = useRef(showDebugInfo);
-  const onReadyRef = useRef(onReady);
-  const onErrorRef = useRef(onError);
-  const onVideoElementRef = useRef(onVideoElement);
+  const { onReadyRef, onErrorRef, onVideoElementRef } = useStableCallbacks({ onReady, onError, onVideoElement });
 
   isAnimatingRef.current = isAnimating;
   rotationSpeedRef.current = rotationSpeed;
   manualRotationRef.current = manualRotation;
   showDebugInfoRef.current = showDebugInfo;
-  onReadyRef.current = onReady;
-  onErrorRef.current = onError;
-  onVideoElementRef.current = onVideoElement;
 
   const getSize = useCallback(() => {
     if (width && height) return { w: width, h: height };

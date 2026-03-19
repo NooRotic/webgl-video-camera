@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from "react";
 import * as THREE from "three";
 import { WebcamCubeProps } from "../types";
 import { createVideoTexture, createWebcamStream, createRenderer, cleanupThreeScene, waitForVideoReady } from "../core/videoTextureUtils";
+import { useStableCallbacks } from "../hooks/useStableCallbacks";
 
 const WebcamCube: React.FC<WebcamCubeProps> = ({
   width = 400,
@@ -19,12 +20,7 @@ const WebcamCube: React.FC<WebcamCubeProps> = ({
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const onReadyRef = useRef(onReady);
-  const onErrorRef = useRef(onError);
-  const onVideoElementRef = useRef(onVideoElement);
-  onReadyRef.current = onReady;
-  onErrorRef.current = onError;
-  onVideoElementRef.current = onVideoElement;
+  const { onReadyRef, onErrorRef, onVideoElementRef } = useStableCallbacks({ onReady, onError, onVideoElement });
 
   const rotationSpeedRef = useRef(rotationSpeed);
   rotationSpeedRef.current = rotationSpeed;
