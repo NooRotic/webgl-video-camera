@@ -558,95 +558,99 @@ export default function App() {
           <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>{activeTabInfo.description}</p>
         )}
 
-        {/* Rotation controls panel */}
+        {/* Rotation controls panel — two-column layout */}
         {!isFullscreen && showRotationControls && (
-          <div style={panelStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <span style={{ fontSize: 13, color: '#888', fontWeight: 600 }}>Rotation</span>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                {/* Play / Pause */}
-                <button
-                  onClick={() => {
-                    if (isAnimating) {
-                      // Pause: store current speeds, zero them out
-                      pausedSpeedsRef.current = { x: rotSpeedX, y: rotSpeedY, z: rotSpeedZ, sphere: sphereRotSpeed };
-                      setRotSpeedX(0); setRotSpeedY(0); setRotSpeedZ(0);
-                      setSphereRotSpeed(0);
-                      setIsAnimating(false);
+          <div style={{ ...panelStyle, display: 'flex', gap: 16 }}>
+            {/* Left column: buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 80 }}>
+              <span style={{ fontSize: 13, color: '#888', fontWeight: 600, marginBottom: 2 }}>Controls</span>
+              {/* Play / Pause */}
+              <button
+                onClick={() => {
+                  if (isAnimating) {
+                    pausedSpeedsRef.current = { x: rotSpeedX, y: rotSpeedY, z: rotSpeedZ, sphere: sphereRotSpeed };
+                    setRotSpeedX(0); setRotSpeedY(0); setRotSpeedZ(0);
+                    setSphereRotSpeed(0);
+                    setIsAnimating(false);
+                  } else {
+                    const saved = pausedSpeedsRef.current;
+                    if (saved) {
+                      setRotSpeedX(saved.x); setRotSpeedY(saved.y); setRotSpeedZ(saved.z);
+                      setSphereRotSpeed(saved.sphere);
                     } else {
-                      // Resume: restore stored speeds
-                      const saved = pausedSpeedsRef.current;
-                      if (saved) {
-                        setRotSpeedX(saved.x); setRotSpeedY(saved.y); setRotSpeedZ(saved.z);
-                        setSphereRotSpeed(saved.sphere);
-                      } else {
-                        setRotSpeedX(0.01); setRotSpeedY(0.01); setRotSpeedZ(0);
-                        setSphereRotSpeed(0.01);
-                      }
-                      pausedSpeedsRef.current = null;
-                      setIsAnimating(true);
+                      setRotSpeedX(0.01); setRotSpeedY(0.01); setRotSpeedZ(0);
+                      setSphereRotSpeed(0.01);
                     }
-                  }}
-                  style={{ ...smallBtnStyle(false), display: 'flex', alignItems: 'center', gap: 4 }}
-                  title={isAnimating ? 'Pause rotation' : 'Resume rotation'}
-                >
-                  {isAnimating ? (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                      <rect x="5" y="3" width="5" height="18" rx="1" />
-                      <rect x="14" y="3" width="5" height="18" rx="1" />
-                    </svg>
-                  ) : (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                      <polygon points="5,3 21,12 5,21" />
-                    </svg>
-                  )}
-                  {isAnimating ? 'Pause' : 'Play'}
-                </button>
-                {/* Link axes */}
-                {activeTab !== 'sphere' && (
-                  <button
-                    onClick={() => setRotLocked((v) => !v)}
-                    style={smallBtnStyle(rotLocked)}
-                    title="Link all axes together"
-                  >
-                    {rotLocked ? 'Linked' : 'Link'}
-                  </button>
+                    pausedSpeedsRef.current = null;
+                    setIsAnimating(true);
+                  }
+                }}
+                style={{ ...smallBtnStyle(isAnimating), display: 'flex', alignItems: 'center', gap: 6, width: '100%', justifyContent: 'center' }}
+                title={isAnimating ? 'Pause rotation' : 'Resume rotation'}
+              >
+                {isAnimating ? (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="5" y="3" width="5" height="18" rx="1" />
+                    <rect x="14" y="3" width="5" height="18" rx="1" />
+                  </svg>
+                ) : (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5,3 21,12 5,21" />
+                  </svg>
                 )}
+                {isAnimating ? 'Pause' : 'Play'}
+              </button>
+              {/* Link axes */}
+              {activeTab !== 'sphere' && (
                 <button
-                  onClick={() => {
-                    setRotSpeedX(0.01); setRotSpeedY(0.01); setRotSpeedZ(0);
-                    setSphereRotSpeed(0.01); setCubeSize(2);
-                    setIsAnimating(true); pausedSpeedsRef.current = null;
-                  }}
-                  style={smallBtnStyle(false)}
+                  onClick={() => setRotLocked((v) => !v)}
+                  style={{ ...smallBtnStyle(rotLocked), width: '100%' }}
+                  title="Link all axes together"
                 >
-                  Reset
+                  {rotLocked ? 'Linked' : 'Link'}
                 </button>
-              </div>
+              )}
+              {/* Reset */}
+              <button
+                onClick={() => {
+                  setRotSpeedX(0.01); setRotSpeedY(0.01); setRotSpeedZ(0);
+                  setSphereRotSpeed(0.01); setCubeSize(2);
+                  setIsAnimating(true); pausedSpeedsRef.current = null;
+                }}
+                style={{ ...smallBtnStyle(false), width: '100%' }}
+              >
+                Reset
+              </button>
             </div>
 
-            {activeTab === 'sphere' ? (
-              <SliderRow label="Speed Y" value={sphereRotSpeed} min={-0.1} max={0.1} step={0.001} onChange={setSphereRotSpeed} />
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <SliderRow label="Speed X" value={rotSpeedX} min={-0.1} max={0.1} step={0.001}
-                  onChange={(v) => { setRotSpeedX(v); if (rotLocked) { setRotSpeedY(v); setRotSpeedZ(v); } }} />
-                <SliderRow label="Speed Y" value={rotSpeedY} min={-0.1} max={0.1} step={0.001}
-                  onChange={(v) => { setRotSpeedY(v); if (rotLocked) { setRotSpeedX(v); setRotSpeedZ(v); } }} />
-                {activeTab === 'animated' && (
-                  <SliderRow label="Speed Z" value={rotSpeedZ} min={-0.1} max={0.1} step={0.001}
-                    onChange={(v) => { setRotSpeedZ(v); if (rotLocked) { setRotSpeedX(v); setRotSpeedY(v); } }} />
-                )}
-              </div>
-            )}
+            {/* Divider */}
+            <div style={{ width: 1, background: '#222', alignSelf: 'stretch' }} />
 
-            {/* Cube size — for cube tabs */}
-            {(activeTab === 'cube' || activeTab === 'animated') && (
-              <>
-                <div style={{ borderTop: '1px solid #222', margin: '10px 0' }} />
-                <SliderRow label="Cube Size" value={cubeSize} min={0.5} max={5} step={0.1} onChange={setCubeSize} />
-              </>
-            )}
+            {/* Right column: sliders */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: 13, color: '#888', fontWeight: 600, marginBottom: 2 }}>Speed</span>
+              {activeTab === 'sphere' ? (
+                <SliderRow label="Speed Y" value={sphereRotSpeed} min={-0.1} max={0.1} step={0.001} onChange={setSphereRotSpeed} />
+              ) : (
+                <>
+                  <SliderRow label="Speed X" value={rotSpeedX} min={-0.1} max={0.1} step={0.001}
+                    onChange={(v) => { setRotSpeedX(v); if (rotLocked) { setRotSpeedY(v); setRotSpeedZ(v); } }} />
+                  <SliderRow label="Speed Y" value={rotSpeedY} min={-0.1} max={0.1} step={0.001}
+                    onChange={(v) => { setRotSpeedY(v); if (rotLocked) { setRotSpeedX(v); setRotSpeedZ(v); } }} />
+                  {activeTab === 'animated' && (
+                    <SliderRow label="Speed Z" value={rotSpeedZ} min={-0.1} max={0.1} step={0.001}
+                      onChange={(v) => { setRotSpeedZ(v); if (rotLocked) { setRotSpeedX(v); setRotSpeedY(v); } }} />
+                  )}
+                </>
+              )}
+              {/* Cube size */}
+              {(activeTab === 'cube' || activeTab === 'animated') && (
+                <>
+                  <div style={{ borderTop: '1px solid #222', margin: '4px 0' }} />
+                  <SliderRow label="Cube Size" value={cubeSize} min={0.5} max={5} step={0.1} onChange={setCubeSize} />
+                </>
+              )}
+            </div>
           </div>
         )}
 
