@@ -31,13 +31,16 @@ const VideoShaderFX: React.FC<VideoShaderFXProps> = ({
   fragmentShader = DEFAULT_FRAGMENT_SHADER,
   onReady,
   onError,
+  onVideoElement,
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const onReadyRef = useRef(onReady);
   const onErrorRef = useRef(onError);
+  const onVideoElementRef = useRef(onVideoElement);
   onReadyRef.current = onReady;
   onErrorRef.current = onError;
+  onVideoElementRef.current = onVideoElement;
 
   useEffect(() => {
     let renderer: THREE.WebGLRenderer | null = null;
@@ -70,6 +73,7 @@ const VideoShaderFX: React.FC<VideoShaderFXProps> = ({
         }
         await videoRef.current.play();
         if (disposed) return;
+        onVideoElementRef.current?.(videoRef.current);
 
         renderer = createRenderer(mountEl, width, height);
 
@@ -109,6 +113,7 @@ const VideoShaderFX: React.FC<VideoShaderFXProps> = ({
 
     return () => {
       disposed = true;
+      onVideoElementRef.current?.(null);
       cleanupThreeScene(renderer, mountEl, stream, animationId);
     };
   }, [width, height, videoSrc, selectedDeviceId, mediaStream, vertexShader, fragmentShader]);

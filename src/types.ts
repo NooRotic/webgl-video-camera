@@ -19,6 +19,8 @@ export interface BaseWebGLVideoProps {
   onReady?: () => void;
   /** Called when an error occurs (webcam access denied, WebGL not supported, etc.) */
   onError?: (error: Error) => void;
+  /** Called with the internal video element once it starts playing, null on cleanup */
+  onVideoElement?: (el: HTMLVideoElement | null) => void;
 }
 
 export interface WebcamCubeProps extends BaseWebGLVideoProps {

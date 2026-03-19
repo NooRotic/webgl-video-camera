@@ -56,6 +56,12 @@ const panelStyle = {
 const labelStyle = { fontSize: 12, color: '#666', minWidth: 70, display: 'inline-block' as const };
 const valueStyle = { fontSize: 12, fontFamily: 'monospace' as const, color: '#888', width: 45, textAlign: 'right' as const };
 
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 // Slider row helper
 function SliderRow({ label, value, min, max, step, onChange }: {
   label: string; value: number; min: number; max: number; step: number;
@@ -113,6 +119,51 @@ export default function App() {
   const [alphaFileName, setAlphaFileName] = useState<string>('');
   const videoInputRef = useRef<HTMLInputElement>(null);
   const alphaInputRef = useRef<HTMLInputElement>(null);
+
+  // Media controls (for file-based video)
+  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(true);
+  const [videoProgress, setVideoProgress] = useState(0);
+  const progressIntervalRef = useRef<number | null>(null);
+
+  // Track video playback progress
+  useEffect(() => {
+    if (videoElement && isVideoPlaying) {
+      progressIntervalRef.current = window.setInterval(() => {
+        if (videoElement.duration) {
+          setVideoProgress(videoElement.currentTime / videoElement.duration);
+        }
+      }, 250);
+    }
+    return () => {
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    };
+  }, [videoElement, isVideoPlaying]);
+
+  const handleVideoElement = useCallback((el: HTMLVideoElement | null) => {
+    setVideoElement(el);
+    if (el) {
+      setIsVideoPlaying(!el.paused);
+      setVideoProgress(0);
+    }
+  }, []);
+
+  const toggleVideoPlay = useCallback(() => {
+    if (!videoElement) return;
+    if (videoElement.paused) {
+      videoElement.play();
+      setIsVideoPlaying(true);
+    } else {
+      videoElement.pause();
+      setIsVideoPlaying(false);
+    }
+  }, [videoElement]);
+
+  const seekVideo = useCallback((pct: number) => {
+    if (!videoElement || !videoElement.duration) return;
+    videoElement.currentTime = pct * videoElement.duration;
+    setVideoProgress(pct);
+  }, [videoElement]);
 
   // Debug panel
   const [showDebug, setShowDebug] = useState(false);
@@ -253,6 +304,8 @@ export default function App() {
     setDragOffset({ x: 0, y: 0 });
     setScale(1);
     setShowGridControls(false);
+    setVideoElement(null);
+    setVideoProgress(0);
 
     const tabInfo = TABS.find((t) => t.id === activeTab);
     if (!tabInfo?.supportsFile) {
@@ -706,6 +759,43 @@ export default function App() {
           </div>
         )}
 
+        {/* Media controls — shown when a file video is playing */}
+        {!isFullscreen && tabSupportsFile && sourceMode === 'file' && videoElement && (
+          <div style={{ ...panelStyle, display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/* Play / Pause */}
+            <button
+              onClick={toggleVideoPlay}
+              style={{ ...smallBtnStyle(false), display: 'flex', alignItems: 'center', gap: 4 }}
+              title={isVideoPlaying ? 'Pause video' : 'Play video'}
+            >
+              {isVideoPlaying ? (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="5" y="3" width="5" height="18" rx="1" />
+                  <rect x="14" y="3" width="5" height="18" rx="1" />
+                </svg>
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="5,3 21,12 5,21" />
+                </svg>
+              )}
+            </button>
+
+            {/* Seek bar */}
+            <input
+              type="range" min={0} max={1} step={0.001} value={videoProgress}
+              onChange={(e) => seekVideo(parseFloat(e.target.value))}
+              style={{ flex: 1, accentColor: '#3b82f6' }}
+            />
+
+            {/* Time display */}
+            <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#888', minWidth: 90, textAlign: 'right' }}>
+              {videoElement.duration ? (
+                `${formatTime(videoElement.currentTime)} / ${formatTime(videoElement.duration)}`
+              ) : '--:--'}
+            </span>
+          </div>
+        )}
+
         {/* Viewport */}
         <div
           ref={viewportRef}
@@ -727,8 +817,8 @@ export default function App() {
             position: 'relative',
           }}
         >
-          {/* No camera notice */}
-          {needsWebcam && (hasCamera === false || cameraError) && (
+          {/* No camera / disconnected overlay */}
+          {needsWebcam && (hasCamera === false || cameraError || (cameraReady && !activeStream)) && (
             <div style={{
               position: 'absolute', inset: 0,
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -791,10 +881,10 @@ export default function App() {
               <AnimatedVideoCube {...commonProps} rotationSpeed={animatedRotSpeed} isAnimating={isAnimating} cubeSize={cubeSize} showDebugInfo />
             )}
             {(activeStream || !needsWebcam) && activeTab === 'shader' && (
-              <VideoShaderFX {...commonProps} videoSrc={effectiveVideoSrc} />
+              <VideoShaderFX {...commonProps} videoSrc={effectiveVideoSrc} onVideoElement={handleVideoElement} />
             )}
             {(activeStream || !needsWebcam) && activeTab === 'alpha' && (
-              <VideoAlphaMask {...commonProps} videoSrc={effectiveVideoSrc} alphaSrc={effectiveAlphaSrc} />
+              <VideoAlphaMask {...commonProps} videoSrc={effectiveVideoSrc} alphaSrc={effectiveAlphaSrc} onVideoElement={handleVideoElement} />
             )}
             {activeStream && activeTab === 'grid' && (
               <VideoGrid {...commonProps} width={baseWidth} height={baseHeight} showControls={showGridControls} />
