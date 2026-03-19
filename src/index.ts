@@ -8,6 +8,9 @@ export { default as VideoAlphaMask } from './components/VideoAlphaMask';
 export { default as AnimatedVideoCube } from './components/AnimatedVideoCube';
 export { default as VideoVHSEffect } from './components/VideoVHSEffect';
 
+// Hooks
+export { useStableCallbacks } from './hooks/useStableCallbacks';
+
 // Core (non-React)
 export { gridAnimations, GridAnimationController } from './core/GridAnimations';
 
