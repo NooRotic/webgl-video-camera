@@ -46,6 +46,8 @@ const VideoAlphaMask: React.FC<VideoAlphaMaskProps> = ({
             videoRef.current.srcObject = stream;
           }
         } else {
+          // Clear any leftover srcObject (webcam) — src attribute won't load while srcObject is set
+          videoRef.current.srcObject = null;
           // Wait for file video to load before creating texture
           await new Promise<void>((resolve, reject) => {
             const v = videoRef.current!;
