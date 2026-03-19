@@ -95,7 +95,9 @@ export default function App() {
   const [sphereRotSpeed, setSphereRotSpeed] = useState(0.01);
   const [isAnimating, setIsAnimating] = useState(true);
   const [rotLocked, setRotLocked] = useState(false);
-  const [cubeSize, setCubeSize] = useState(2); // for animated cube
+  const [cubeSize, setCubeSize] = useState(2);
+  // Stored speeds for pause/resume
+  const pausedSpeedsRef = useRef<{ x: number; y: number; z: number; sphere: number } | null>(null);
 
   // Mouse drag
   const [isDragging, setIsDragging] = useState(false);
@@ -561,7 +563,46 @@ export default function App() {
           <div style={panelStyle}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <span style={{ fontSize: 13, color: '#888', fontWeight: 600 }}>Rotation</span>
-              <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                {/* Play / Pause */}
+                <button
+                  onClick={() => {
+                    if (isAnimating) {
+                      // Pause: store current speeds, zero them out
+                      pausedSpeedsRef.current = { x: rotSpeedX, y: rotSpeedY, z: rotSpeedZ, sphere: sphereRotSpeed };
+                      setRotSpeedX(0); setRotSpeedY(0); setRotSpeedZ(0);
+                      setSphereRotSpeed(0);
+                      setIsAnimating(false);
+                    } else {
+                      // Resume: restore stored speeds
+                      const saved = pausedSpeedsRef.current;
+                      if (saved) {
+                        setRotSpeedX(saved.x); setRotSpeedY(saved.y); setRotSpeedZ(saved.z);
+                        setSphereRotSpeed(saved.sphere);
+                      } else {
+                        setRotSpeedX(0.01); setRotSpeedY(0.01); setRotSpeedZ(0);
+                        setSphereRotSpeed(0.01);
+                      }
+                      pausedSpeedsRef.current = null;
+                      setIsAnimating(true);
+                    }
+                  }}
+                  style={{ ...smallBtnStyle(false), display: 'flex', alignItems: 'center', gap: 4 }}
+                  title={isAnimating ? 'Pause rotation' : 'Resume rotation'}
+                >
+                  {isAnimating ? (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                      <rect x="5" y="3" width="5" height="18" rx="1" />
+                      <rect x="14" y="3" width="5" height="18" rx="1" />
+                    </svg>
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                      <polygon points="5,3 21,12 5,21" />
+                    </svg>
+                  )}
+                  {isAnimating ? 'Pause' : 'Play'}
+                </button>
+                {/* Link axes */}
                 {activeTab !== 'sphere' && (
                   <button
                     onClick={() => setRotLocked((v) => !v)}
@@ -571,15 +612,11 @@ export default function App() {
                     {rotLocked ? 'Linked' : 'Link'}
                   </button>
                 )}
-                {activeTab === 'animated' && (
-                  <button onClick={() => setIsAnimating((v) => !v)} style={smallBtnStyle(isAnimating)}>
-                    {isAnimating ? 'Pause' : 'Play'}
-                  </button>
-                )}
                 <button
                   onClick={() => {
                     setRotSpeedX(0.01); setRotSpeedY(0.01); setRotSpeedZ(0);
                     setSphereRotSpeed(0.01); setCubeSize(2);
+                    setIsAnimating(true); pausedSpeedsRef.current = null;
                   }}
                   style={smallBtnStyle(false)}
                 >
