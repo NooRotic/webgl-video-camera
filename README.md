@@ -1,6 +1,9 @@
 # @riptheai/webgl-video
 
-Three.js WebGL video texture components for React — webcam cubes, spheres, shader effects, video grids, and tile animations.
+Three.js WebGL video texture components for React — webcam cubes, spheres, shader effects, VHS retro filters, video grids, and tile animations.
+
+<!-- Screenshots will be added here -->
+<!-- ![Demo](docs/screenshots/demo-overview.png) -->
 
 ## Install
 
@@ -12,13 +15,16 @@ npm install @riptheai/webgl-video three react react-dom
 
 | Component | Description |
 |---|---|
-| `WebcamCube` | Rotating 3D cube with webcam texture on each face |
-| `WebcamSphere` | Rotating sphere with webcam video mapped to the surface |
-| `AnimatedVideoCube` | Cube with configurable rotation, manual control, and debug overlay |
-| `VideoShaderFX` | Webcam feed processed through custom GLSL vertex/fragment shaders |
-| `VideoAlphaMask` | Webcam composited with a separate alpha mask video |
+| `WebcamCube` | Rotating 3D cube with webcam/video texture on each face |
+| `WebcamSphere` | Rotating sphere with video mapped to the surface |
+| `AnimatedVideoCube` | Cube with configurable rotation, surprise animation, and debug overlay |
+| `VideoShaderFX` | Video feed processed through custom GLSL vertex/fragment shaders |
+| `VideoAlphaMask` | Video composited with a separate alpha mask video |
+| `VideoVHSEffect` | Retro VHS filter with scanlines, chromatic aberration, noise, and tracking glitch |
 | `VideoGrid` | NxN tile grid with 12 built-in animations and adjustable spacing/tilt |
 | `VideoGridControls` | Standalone control panel for VideoGrid parameters |
+
+All components support both **webcam** and **video file** input via the `mediaStream` and `videoSrc` props.
 
 ## Quick Start
 
@@ -36,6 +42,37 @@ function App() {
     />
   );
 }
+```
+
+### Shared Webcam Stream
+
+For apps with multiple components, acquire the stream once and share it to avoid device lock issues:
+
+```tsx
+const [stream, setStream] = useState<MediaStream | null>(null);
+
+useEffect(() => {
+  navigator.mediaDevices.getUserMedia({ video: true }).then(setStream);
+  return () => stream?.getTracks().forEach(t => t.stop());
+}, []);
+
+return (
+  <>
+    <WebcamCube mediaStream={stream} width={400} height={400} />
+    <WebcamSphere mediaStream={stream} width={400} height={400} />
+  </>
+);
+```
+
+### Video File Input
+
+```tsx
+<VideoShaderFX
+  videoSrc={URL.createObjectURL(file)}
+  width={640}
+  height={480}
+  onVideoElement={(el) => { /* control playback: el.pause(), el.currentTime = 0, etc. */ }}
+/>
 ```
 
 ### Next.js (App Router)
@@ -62,9 +99,29 @@ All components extend `BaseWebGLVideoProps`:
 | `className` | `string` | — | CSS class on outer container |
 | `style` | `CSSProperties` | — | Inline styles on outer container |
 | `selectedDeviceId` | `string` | — | Specific webcam device ID |
-| `videoSrc` | `string` | — | Video file URL (file-based components) |
+| `mediaStream` | `MediaStream` | — | Pre-acquired webcam stream (skips getUserMedia) |
+| `videoSrc` | `string` | — | Video file URL (blob URL or remote) |
 | `onReady` | `() => void` | — | Fires when WebGL scene is initialized |
 | `onError` | `(error: Error) => void` | — | Fires on init failure |
+| `onVideoElement` | `(el: HTMLVideoElement \| null) => void` | — | Exposes internal video element for playback control |
+
+## VHS Effect
+
+```tsx
+import { VideoVHSEffect } from '@riptheai/webgl-video';
+
+<VideoVHSEffect
+  width={640}
+  height={480}
+  intensity={1.0}          // Overall effect strength (0-2)
+  scanlineIntensity={1.0}  // Scanline visibility (0-3)
+  aberrationIntensity={1.0} // Chromatic aberration (0-5)
+  noiseIntensity={1.0}     // Film grain noise (0-3)
+  trackingGlitch={true}    // Periodic horizontal glitch band
+/>
+```
+
+All VHS parameters are stored in refs — changing them via sliders updates the shader in real-time at 60fps without re-initializing the WebGL scene.
 
 ## Grid Animations
 
@@ -83,20 +140,22 @@ import { GridAnimationController } from '@riptheai/webgl-video/animations';
 ```ts
 import {
   createVideoTexture,   // VideoTexture with correct filtering + color space
-  createWebcamStream,   // getUserMedia with device/resolution options
+  createWebcamStream,   // getUserMedia with retry/fallback (exact → preferred → any)
   createRenderer,       // WebGLRenderer attached to a container
   cleanupThreeScene,    // Dispose renderer, stop stream, cancel RAF
+  waitForVideoReady,    // Promise that resolves when video has enough data for texture
 } from '@riptheai/webgl-video';
 ```
 
 ## Development
 
 ```bash
-git clone https://github.com/riptheai/webgl-video.git
-cd webgl-video
+git clone https://github.com/NooRotic/webgl-video-camera.git
+cd webgl-video-camera
 npm install
-npm run dev          # Vite dev server on http://localhost:3333
-npm run test         # Run unit tests
+npm run dev          # Vite demo server on http://localhost:3333
+npm run test         # Run unit tests (31 tests)
+npm run typecheck    # TypeScript type checking
 npm run build        # Build ESM + CJS + TypeScript declarations
 ```
 
