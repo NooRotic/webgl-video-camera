@@ -94,6 +94,8 @@ export default function App() {
   const [rotSpeedZ, setRotSpeedZ] = useState(0);
   const [sphereRotSpeed, setSphereRotSpeed] = useState(0.01);
   const [isAnimating, setIsAnimating] = useState(true);
+  const [rotLocked, setRotLocked] = useState(false);
+  const [cubeSize, setCubeSize] = useState(2); // for animated cube
 
   // Mouse drag
   const [isDragging, setIsDragging] = useState(false);
@@ -560,18 +562,24 @@ export default function App() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <span style={{ fontSize: 13, color: '#888', fontWeight: 600 }}>Rotation</span>
               <div style={{ display: 'flex', gap: 6 }}>
-                {activeTab === 'animated' && (
+                {activeTab !== 'sphere' && (
                   <button
-                    onClick={() => setIsAnimating((v) => !v)}
-                    style={smallBtnStyle(isAnimating)}
+                    onClick={() => setRotLocked((v) => !v)}
+                    style={smallBtnStyle(rotLocked)}
+                    title="Link all axes together"
                   >
+                    {rotLocked ? 'Linked' : 'Link'}
+                  </button>
+                )}
+                {activeTab === 'animated' && (
+                  <button onClick={() => setIsAnimating((v) => !v)} style={smallBtnStyle(isAnimating)}>
                     {isAnimating ? 'Pause' : 'Play'}
                   </button>
                 )}
                 <button
                   onClick={() => {
                     setRotSpeedX(0.01); setRotSpeedY(0.01); setRotSpeedZ(0);
-                    setSphereRotSpeed(0.01);
+                    setSphereRotSpeed(0.01); setCubeSize(2);
                   }}
                   style={smallBtnStyle(false)}
                 >
@@ -584,12 +592,23 @@ export default function App() {
               <SliderRow label="Speed Y" value={sphereRotSpeed} min={-0.1} max={0.1} step={0.001} onChange={setSphereRotSpeed} />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <SliderRow label="Speed X" value={rotSpeedX} min={-0.1} max={0.1} step={0.001} onChange={setRotSpeedX} />
-                <SliderRow label="Speed Y" value={rotSpeedY} min={-0.1} max={0.1} step={0.001} onChange={setRotSpeedY} />
+                <SliderRow label="Speed X" value={rotSpeedX} min={-0.1} max={0.1} step={0.001}
+                  onChange={(v) => { setRotSpeedX(v); if (rotLocked) { setRotSpeedY(v); setRotSpeedZ(v); } }} />
+                <SliderRow label="Speed Y" value={rotSpeedY} min={-0.1} max={0.1} step={0.001}
+                  onChange={(v) => { setRotSpeedY(v); if (rotLocked) { setRotSpeedX(v); setRotSpeedZ(v); } }} />
                 {activeTab === 'animated' && (
-                  <SliderRow label="Speed Z" value={rotSpeedZ} min={-0.1} max={0.1} step={0.001} onChange={setRotSpeedZ} />
+                  <SliderRow label="Speed Z" value={rotSpeedZ} min={-0.1} max={0.1} step={0.001}
+                    onChange={(v) => { setRotSpeedZ(v); if (rotLocked) { setRotSpeedX(v); setRotSpeedY(v); } }} />
                 )}
               </div>
+            )}
+
+            {/* Cube size — only for animated cube */}
+            {activeTab === 'animated' && (
+              <>
+                <div style={{ borderTop: '1px solid #222', margin: '10px 0' }} />
+                <SliderRow label="Cube Size" value={cubeSize} min={0.5} max={5} step={0.1} onChange={setCubeSize} />
+              </>
             )}
           </div>
         )}
@@ -728,7 +747,7 @@ export default function App() {
               <WebcamSphere {...commonProps} rotationSpeed={sphereRotSpeed} />
             )}
             {activeStream && activeTab === 'animated' && (
-              <AnimatedVideoCube {...commonProps} rotationSpeed={animatedRotSpeed} isAnimating={isAnimating} showDebugInfo />
+              <AnimatedVideoCube {...commonProps} rotationSpeed={animatedRotSpeed} isAnimating={isAnimating} cubeSize={cubeSize} showDebugInfo />
             )}
             {(activeStream || !needsWebcam) && activeTab === 'shader' && (
               <VideoShaderFX {...commonProps} videoSrc={effectiveVideoSrc} />
