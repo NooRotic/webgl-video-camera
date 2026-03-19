@@ -14,14 +14,17 @@ const VideoAlphaMask: React.FC<VideoAlphaMaskProps> = ({
   mediaStream,
   onReady,
   onError,
+  onVideoElement,
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const alphaRef = useRef<HTMLVideoElement>(null);
   const onReadyRef = useRef(onReady);
   const onErrorRef = useRef(onError);
+  const onVideoElementRef = useRef(onVideoElement);
   onReadyRef.current = onReady;
   onErrorRef.current = onError;
+  onVideoElementRef.current = onVideoElement;
 
   useEffect(() => {
     let renderer: THREE.WebGLRenderer | null = null;
@@ -42,9 +45,21 @@ const VideoAlphaMask: React.FC<VideoAlphaMaskProps> = ({
             if (disposed) { stream.getTracks().forEach(t => t.stop()); return; }
             videoRef.current.srcObject = stream;
           }
-          await videoRef.current.play();
+        } else {
+          // Clear any leftover srcObject (webcam) — src attribute won't load while srcObject is set
+          videoRef.current.srcObject = null;
+          // Wait for file video to load before creating texture
+          await new Promise<void>((resolve, reject) => {
+            const v = videoRef.current!;
+            if (v.readyState >= 2) { resolve(); return; }
+            v.onloadeddata = () => resolve();
+            v.onerror = () => reject(new Error('Failed to load video file'));
+          });
           if (disposed) return;
         }
+        await videoRef.current.play();
+        if (disposed) return;
+        onVideoElementRef.current?.(videoRef.current);
 
         renderer = createRenderer(mountEl, width, height);
 
@@ -90,6 +105,7 @@ const VideoAlphaMask: React.FC<VideoAlphaMaskProps> = ({
 
     return () => {
       disposed = true;
+      onVideoElementRef.current?.(null);
       cleanupThreeScene(renderer, mountEl, stream, animationId);
     };
   }, [width, height, videoSrc, alphaSrc, selectedDeviceId, mediaStream]);

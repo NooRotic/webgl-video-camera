@@ -11,6 +11,7 @@ const WebcamCube: React.FC<WebcamCubeProps> = ({
   selectedDeviceId,
   mediaStream,
   rotationSpeed = { x: 0.01, y: 0.01 },
+  cubeSize = 1.5,
   onReady,
   onError,
 }) => {
@@ -21,10 +22,14 @@ const WebcamCube: React.FC<WebcamCubeProps> = ({
   onReadyRef.current = onReady;
   onErrorRef.current = onError;
 
+  // Store rotationSpeed in ref so animation loop reads latest value without re-init
+  const rotationSpeedRef = useRef(rotationSpeed);
+  rotationSpeedRef.current = rotationSpeed;
+
   useEffect(() => {
     let renderer: THREE.WebGLRenderer | null = null;
     let animationId: number = 0;
-    let ownStream: MediaStream | null = null; // only set if WE acquired it
+    let ownStream: MediaStream | null = null;
     let disposed = false;
     const mountEl = mountRef.current;
 
@@ -34,10 +39,8 @@ const WebcamCube: React.FC<WebcamCubeProps> = ({
       try {
         let stream: MediaStream;
         if (mediaStream) {
-          // Use pre-acquired stream — don't call getUserMedia
           stream = mediaStream;
         } else {
-          // Acquire our own stream
           ownStream = await createWebcamStream({ deviceId: selectedDeviceId });
           if (disposed) { ownStream.getTracks().forEach(t => t.stop()); return; }
           stream = ownStream;
@@ -56,7 +59,7 @@ const WebcamCube: React.FC<WebcamCubeProps> = ({
 
           const videoTexture = createVideoTexture(videoRef.current);
 
-          const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+          const geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
           const material = new THREE.MeshBasicMaterial({ map: videoTexture });
           const cube = new THREE.Mesh(geometry, material);
           scene.add(cube);
@@ -64,8 +67,8 @@ const WebcamCube: React.FC<WebcamCubeProps> = ({
           const animate = () => {
             if (disposed) return;
             animationId = requestAnimationFrame(animate);
-            cube.rotation.x += rotationSpeed.x;
-            cube.rotation.y += rotationSpeed.y;
+            cube.rotation.x += rotationSpeedRef.current.x;
+            cube.rotation.y += rotationSpeedRef.current.y;
             renderer!.render(scene, camera);
           };
           animate();
@@ -83,10 +86,9 @@ const WebcamCube: React.FC<WebcamCubeProps> = ({
 
     return () => {
       disposed = true;
-      // Only stop stream if we acquired it — don't kill a shared stream
       cleanupThreeScene(renderer, mountEl, ownStream, animationId);
     };
-  }, [width, height, selectedDeviceId, mediaStream, rotationSpeed.x, rotationSpeed.y]);
+  }, [width, height, selectedDeviceId, mediaStream, cubeSize]);
 
   return (
     <div className={className} style={style}>
